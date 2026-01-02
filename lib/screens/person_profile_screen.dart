@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:settingwala/utils/api_constants.dart';
 import '../widgets/base_screen.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
@@ -67,6 +68,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
       if (cachedSubscription != null) {
         setState(() {
         });
+
       }
 
       final profile = await ProfileService.getProfile();
@@ -114,7 +116,6 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
     }
     
     
-    
     return Container(
       width: avatarRadius * 2,
       height: avatarRadius * 2,
@@ -141,8 +142,6 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
             );
           },
           errorBuilder: (context, error, stackTrace) {
-            
-            
             
             return Center(child: defaultIcon);
           },
@@ -666,7 +665,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
               }
               
               if (imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
-                imageUrl = 'https://settingwala.com/storage/$imageUrl';
+                imageUrl = ApiConstants.getStorageUrl(imageUrl);
               }
               
               return GestureDetector(
@@ -693,7 +692,6 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
                             imageUrl,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                              
                               
                               return Center(
                                 child: Icon(
@@ -741,7 +739,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
       if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
         return cleanUrl;
       }
-      return 'https://settingwala.com/storage/$cleanUrl';
+      return ApiConstants.getStorageUrl(cleanUrl);
     }
     
     List<String> processGalleryImages(List<dynamic>? galleryData) {
@@ -759,7 +757,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
         
         if (imageUrl != null && imageUrl.isNotEmpty) {
           if (!imageUrl.startsWith('http')) {
-            imageUrl = 'https://settingwala.com/storage/$imageUrl';
+            imageUrl = ApiConstants.getStorageUrl(imageUrl);
           }
           processedImages.add(imageUrl);
         }

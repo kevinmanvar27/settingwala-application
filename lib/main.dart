@@ -1,14 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:settingwala/Service/fcm_service.dart';
 import 'package:settingwala/utils/permission_helper.dart';
 import 'firebase_options.dart';
 import 'firstscreen.dart';
 import 'screens/main_navigation_screen.dart';
-import 'splashscreen.dart';
 import 'theme/theme.dart';
+import 'routes/app_routes.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +60,10 @@ class _MyAppState extends State<MyApp> {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: _themeNotifier.materialThemeMode,
-            home: const Splashscreen(),
+            // Use initialRoute instead of home when using routes
+            initialRoute: AppRoutes.splash,
+            routes: AppRoutes.routes,
+            onGenerateRoute: AppRoutes.onGenerateRoute,
           );
         },
       ),

@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../Service/user_service.dart';
 import '../model/getusersmodel.dart';
+import 'package:settingwala/utils/api_constants.dart';
 
 class FindPersonPage extends StatefulWidget {
   const FindPersonPage({super.key});
@@ -107,7 +108,7 @@ class _FindPersonPageState extends State<FindPersonPage> with SingleTickerProvid
       if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
         return cleanUrl;
       }
-      return 'https://settingwala.com/storage/$cleanUrl';
+      return ApiConstants.getStorageUrl(cleanUrl);
     }
 
     return {
@@ -1308,6 +1309,4 @@ class _FindPersonPageState extends State<FindPersonPage> with SingleTickerProvid
       ),
     );
   }
-
-
 }

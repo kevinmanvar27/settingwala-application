@@ -124,8 +124,7 @@ class _EventsScreenState extends State<EventsScreen> with TickerProviderStateMix
     final emptySubtitleSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;
     final emptySpacing = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 12.0 : 16.0;
     
-    final fabSize = isDesktop ? 64.0 : isTablet ? 60.0 : isSmallScreen ? 48.0 : 56.0;
-    final fabIconSize = isDesktop ? 28.0 : isTablet ? 26.0 : isSmallScreen ? 22.0 : 24.0;
+    // FAB removed as per UI requirements
     
     final gridCrossAxisCount = isDesktop ? 3 : isTablet ? 2 : 1;
     final useGrid = isTablet || isDesktop;
@@ -197,19 +196,7 @@ class _EventsScreenState extends State<EventsScreen> with TickerProviderStateMix
           ],
         ),
       ),
-      floatingActionButton: SizedBox(
-        width: fabSize,
-        height: fabSize,
-        child: FloatingActionButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Create event feature coming soon')),
-            );
-          },
-          backgroundColor: primaryColor,
-          child: Icon(Icons.add, size: fabIconSize),
-        ),
-      ),
+      // FAB removed as per requirement
     );
   }
 

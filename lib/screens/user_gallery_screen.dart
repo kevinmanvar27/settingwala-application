@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
 import '../theme/app_colors.dart';
+import 'package:settingwala/utils/api_constants.dart';
 
 class UserGalleryScreen extends StatefulWidget {
   final Map<String, dynamic> person;
@@ -32,10 +33,10 @@ class _UserGalleryScreenState extends State<UserGalleryScreen> {
     }
     
     if (widget.person['id'] != null) {
-      return 'https://settingwala.com/storage/$cleanUrl';
+      return ApiConstants.getStorageUrl(cleanUrl);
     }
     
-    return 'https://settingwala.com/storage/$cleanUrl';
+    return ApiConstants.getStorageUrl(cleanUrl);
   }
 
   void _loadGalleryFromPerson() {

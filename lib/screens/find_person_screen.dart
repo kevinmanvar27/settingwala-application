@@ -5,6 +5,7 @@ import '../utils/responsive.dart';
 import 'person_profile_screen.dart';
 import '../Service/user_service.dart';
 import '../model/getusersmodel.dart';
+import 'package:settingwala/utils/api_constants.dart';
 
 class FindPersonScreen extends StatefulWidget {
   const FindPersonScreen({super.key});
@@ -119,7 +120,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
       if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
         return cleanUrl;
       }
-      return 'https://settingwala.com/storage/$cleanUrl';
+      return ApiConstants.getStorageUrl(cleanUrl);
     }
     
     String buildLocation() {
@@ -631,7 +632,8 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
     final emptyTitleSize = isSmallScreen ? 16.0 : (isTablet ? 22.0 : 18.0);
     final emptySubtitleSize = isSmallScreen ? 13.0 : (isTablet ? 16.0 : 14.0);
     
-    final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
+    // Tablet ma 4 users per row, mobile ma 2
+    final crossAxisCount = isDesktop ? 4 : (isTablet ? 4 : 2);
     
     return BaseScreen(
       title: 'Find Person',
