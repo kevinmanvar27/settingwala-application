@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "782697591400",
+    "project_id": "settingwala-470409",
+    "storage_bucket": "settingwala-470409.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:782697591400:android:7a2828a008c54b3ac441dd",
+        "android_client_info": {
+          "package_name": "com.rektech.settingwalaapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "782697591400-pahppc7b4e6l6em94lmglcoa9budhdh1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rektech.settingwalaapp",
+            "certificate_hash": "bb7432b0db4e1d0847005602e25dda4a7332c8f4"
+          }
+        },
+        {
+          "client_id": "782697591400-qvh6tgc8vmvdiq79vj5ug01af78ec10l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdb7EsU3VRwb13cmE70SqcuAafLLZeOck"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "782697591400-9ncotmdr5fibdta2bt7udu4jd89isdgi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "782697591400-cboj088u93kngonvbbedqqfill1ekg0b.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.rektech.settingwalaapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
