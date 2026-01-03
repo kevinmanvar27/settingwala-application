@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_drawer.dart';
 import '../theme/theme.dart';
+import '../providers/chat_icon_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../Service/profile_service.dart';
 import '../Service/avatar_service.dart';
+// Removed BookingService import - chat icon visibility is now handled by ChatIconProvider
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -76,7 +78,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
   bool _isUploadingAvatar = false;
   
   final ScrollController _scrollController = ScrollController();
-
+  
+  // Removed _showChatIcon - now handled by ChatIconProvider globally
 
 
   @override
@@ -96,7 +99,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
     
     _animationController.forward();
     _loadProfile();
+    // Removed _checkChatIconVisibility() - now handled by ChatIconProvider
   }
+
+  // Removed _checkChatIconVisibility() method - now handled by ChatIconProvider globally
+  // Chat icon visibility is managed by ChatIconProvider in main.dart
 
   @override
   void dispose() {
@@ -401,14 +408,22 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
     final isSmallScreen = screenWidth < 360;
     final isTablet = screenWidth >= 600;
 
-    return Scaffold(
-      key: _scaffoldKey,
-      appBar: CustomAppBar(
-        title: 'Edit Profile',
-        scaffoldKey: _scaffoldKey,
-      ),
-      drawer: const CustomDrawer(),
-      body: _isLoadingProfile
+    // Get chat notifier for ListenableBuilder
+    final chatNotifier = ChatIconProvider.maybeOf(context);
+    
+    return ListenableBuilder(
+      listenable: chatNotifier ?? ChangeNotifier(),
+      builder: (context, child) {
+        return Scaffold(
+          key: _scaffoldKey,
+          appBar: CustomAppBar(
+            title: 'Edit Profile',
+            scaffoldKey: _scaffoldKey,
+            showBackButton: true,  // Add back button for navigation
+            // showChatIcon not passed - uses ChatIconProvider automatically
+          ),
+          drawer: const CustomDrawer(),
+          body: _isLoadingProfile
           ? Center(child: CircularProgressIndicator(color: primaryColor))
           : FadeTransition(
               opacity: _fadeAnimation,
@@ -518,6 +533,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
                 ),
               ),
             ),
+        );
+      },
     );
   }
 
@@ -531,17 +548,22 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
     return Center(
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: avatarRadius,
-            backgroundColor: primaryColor.withOpacity(0.2),
-            backgroundImage: _imageFile != null
-                ? FileImage(_imageFile!)
-                : (_currentAvatarUrl != null
-                    ? NetworkImage(_currentAvatarUrl!)
-                    : null) as ImageProvider?,
-            child: (_imageFile == null && _currentAvatarUrl == null)
-                ? Icon(Icons.person, size: avatarRadius, color: primaryColor)
-                : null,
+          GestureDetector(
+            onTap: () {
+              _scaffoldKey.currentState?.openDrawer();
+            },
+            child: CircleAvatar(
+              radius: avatarRadius,
+              backgroundColor: primaryColor.withOpacity(0.2),
+              backgroundImage: _imageFile != null
+                  ? FileImage(_imageFile!)
+                  : (_currentAvatarUrl != null
+                      ? NetworkImage(_currentAvatarUrl!)
+                      : null) as ImageProvider?,
+              child: (_imageFile == null && _currentAvatarUrl == null)
+                  ? Icon(Icons.person, size: avatarRadius, color: primaryColor)
+                  : null,
+            ),
           ),
           Positioned(
             bottom: 0,

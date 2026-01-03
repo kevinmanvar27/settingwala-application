@@ -166,11 +166,28 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
         int endHour = int.tryParse(endParts[0]) ?? 0;
         int endMinute = int.tryParse(endParts[1]) ?? 0;
 
+        // Round start time UP to next 30-minute interval (9:00, 9:30, 10:00, etc.)
+        if (startMinute > 0 && startMinute < 30) {
+          startMinute = 30;
+        } else if (startMinute > 30) {
+          startMinute = 0;
+          startHour += 1;
+        }
+        
+        // Round end time DOWN to previous 30-minute interval
+        if (endMinute > 0 && endMinute < 30) {
+          endMinute = 0;
+        } else if (endMinute > 30) {
+          endMinute = 30;
+        }
+
         int startTotalMinutes = startHour * 60 + startMinute;
         int endTotalMinutes = endHour * 60 + endMinute;
 
+        // For today, round current time UP to next 30-minute slot
         int firstSlotMinutes = startTotalMinutes;
         if (isToday) {
+          // Round current time UP to next 30-minute interval
           int next30MinuteSlot = ((currentMinutes + 29) ~/ 30) * 30;
           if (next30MinuteSlot >= startTotalMinutes && next30MinuteSlot < endTotalMinutes) {
             firstSlotMinutes = next30MinuteSlot;
@@ -181,6 +198,7 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
           }
         }
 
+        // Generate slots at exact 30-minute intervals (9:00, 9:30, 10:00, 10:30, etc.)
         for (int slotMinutes = firstSlotMinutes; slotMinutes + 30 <= endTotalMinutes; slotMinutes += 30) {
           final startTimeStr = _minutesToTime(slotMinutes);
           final endTimeStr = _minutesToTime(slotMinutes + 30);
@@ -508,7 +526,7 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
 
   double _calculateAmount() {
     final duration = _calculateDuration();
-    final hourlyRate = double.tryParse(widget.person['hourly_rate']?.toString() ?? '0') ?? 0;
+    final hourlyRate = double.tryParse(widget.person['hourlyRate']?.toString() ?? widget.person['hourly_rate']?.toString() ?? '0') ?? 0;
     return duration * hourlyRate;
   }
 
@@ -528,8 +546,10 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
 
   Widget _buildBookingForm(AppColorSet colors, Color primaryColor) {
     final providerName = widget.person['name'] ?? 'Provider';
-    final hourlyRate = widget.person['hourly_rate']?.toString() ?? '0';
-    final profilePicture = widget.person['profile_picture'];
+    final hourlyRate = widget.person['hourlyRate']?.toString() ?? widget.person['hourly_rate']?.toString() ?? '0';
+    final profileImage = widget.person['image']?.toString() ?? '';
+    final gender = widget.person['gender']?.toString() ?? 'Male';
+    final isFemale = gender == 'Female';
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(Responsive.wp(4)),
@@ -551,11 +571,7 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundImage: profilePicture != null ? NetworkImage(profilePicture) : null,
-                  child: profilePicture == null ? Icon(Icons.person, size: 30, color: colors.textSecondary) : null,
-                ),
+                _buildProfileAvatar(profileImage, isFemale, colors),
                 SizedBox(width: Responsive.wp(4)),
                 Expanded(
                   child: Column(
@@ -731,38 +747,23 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
                           children: [
                             Text('Start Time', style: TextStyle(color: colors.textSecondary, fontSize: Responsive.fontSize(13))),
                             SizedBox(height: Responsive.hp(0.5)),
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: Responsive.wp(3)),
-                              decoration: BoxDecoration(
-                                color: colors.card,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: colors.border),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  isExpanded: true,
-                                  value: _startTime,
-                                  hint: Text('Select', style: TextStyle(color: colors.textSecondary)),
-                                  items: _availableStartTimes.map((time) {
-                                    return DropdownMenuItem<String>(
-                                      value: time,
-                                      child: Text(_formatTimeString(time)),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _startTime = value;
-                                      if (_endTime != null && value != null) {
-                                        final startMin = _timeToMinutes(value);
-                                        final endMin = _timeToMinutes(_endTime!);
-                                        if (endMin < startMin + 30) {
-                                          _endTime = null;
-                                        }
-                                      }
-                                    });
-                                  },
-                                ),
-                              ),
+                            _buildScrollableTimeSelector(
+                              times: _availableStartTimes,
+                              selectedTime: _startTime,
+                              colors: colors,
+                              primaryColor: primaryColor,
+                              onTimeSelected: (value) {
+                                setState(() {
+                                  _startTime = value;
+                                  if (_endTime != null && value != null) {
+                                    final startMin = _timeToMinutes(value);
+                                    final endMin = _timeToMinutes(_endTime!);
+                                    if (endMin < startMin + 30) {
+                                      _endTime = null;
+                                    }
+                                  }
+                                });
+                              },
                             ),
                           ],
                         ),
@@ -774,29 +775,15 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
                           children: [
                             Text('End Time', style: TextStyle(color: colors.textSecondary, fontSize: Responsive.fontSize(13))),
                             SizedBox(height: Responsive.hp(0.5)),
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: Responsive.wp(3)),
-                              decoration: BoxDecoration(
-                                color: colors.card,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: colors.border),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  isExpanded: true,
-                                  value: _endTime,
-                                  hint: Text('Select', style: TextStyle(color: colors.textSecondary)),
-                                  items: _getValidEndTimes().map((time) {
-                                    return DropdownMenuItem<String>(
-                                      value: time,
-                                      child: Text(_formatTimeString(time)),
-                                    );
-                                  }).toList(),
-                                  onChanged: _startTime == null ? null : (value) {
-                                    setState(() => _endTime = value);
-                                  },
-                                ),
-                              ),
+                            _buildScrollableTimeSelector(
+                              times: _getValidEndTimes(),
+                              selectedTime: _endTime,
+                              colors: colors,
+                              primaryColor: primaryColor,
+                              enabled: _startTime != null,
+                              onTimeSelected: (value) {
+                                setState(() => _endTime = value);
+                              },
                             ),
                           ],
                         ),
@@ -877,6 +864,119 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildScrollableTimeSelector({
+    required List<String> times,
+    required String? selectedTime,
+    required AppColorSet colors,
+    required Color primaryColor,
+    required Function(String?) onTimeSelected,
+    bool enabled = true,
+  }) {
+    final centerItemHeight = 48.0;
+    final sideItemHeight = 36.0;
+    final containerHeight = centerItemHeight + (sideItemHeight * 2);
+
+    if (times.isEmpty) {
+      return Container(
+        height: containerHeight,
+        decoration: BoxDecoration(
+          color: colors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.border),
+        ),
+        child: Center(
+          child: Text(
+            enabled ? 'No slots' : 'Select start time first',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: Responsive.fontSize(13),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Find selected index, default to 0 if none selected
+    int selectedIndex = selectedTime != null ? times.indexOf(selectedTime) : 0;
+    
+    // Create controller
+    final scrollController = FixedExtentScrollController(
+      initialItem: selectedIndex >= 0 ? selectedIndex : 0,
+    );
+
+    // Auto-select first item if nothing selected
+    if (selectedTime == null && enabled && times.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onTimeSelected(times[0]);
+      });
+    }
+
+    return Container(
+      height: containerHeight,
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // Center selection indicator with border
+            Positioned(
+              top: sideItemHeight,
+              left: 0,
+              right: 0,
+              height: centerItemHeight,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: colors.border, width: 1),
+                    bottom: BorderSide(color: colors.border, width: 1),
+                  ),
+                  color: primaryColor.withOpacity(0.08),
+                ),
+              ),
+            ),
+            // Wheel scroll view
+            ListWheelScrollView.useDelegate(
+              itemExtent: centerItemHeight,
+              diameterRatio: 1.5,
+              perspective: 0.003,
+              physics: const FixedExtentScrollPhysics(),
+              controller: scrollController,
+              onSelectedItemChanged: (index) {
+                if (enabled && index >= 0 && index < times.length) {
+                  onTimeSelected(times[index]);
+                }
+              },
+              childDelegate: ListWheelChildBuilderDelegate(
+                childCount: times.length,
+                builder: (context, index) {
+                  final time = times[index];
+                  // Check if this is the center item based on scroll position
+                  final isCenter = index == selectedIndex || (selectedTime == null && index == 0);
+                  return Center(
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      style: TextStyle(
+                        fontSize: isCenter ? Responsive.fontSize(16) : Responsive.fontSize(13),
+                        color: isCenter 
+                            ? primaryColor 
+                            : (enabled ? colors.textSecondary.withOpacity(0.6) : colors.textSecondary.withOpacity(0.3)),
+                        fontWeight: isCenter ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      child: Text(_formatTimeString(time)),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1108,6 +1208,56 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileAvatar(String imageUrl, bool isFemale, AppColorSet colors) {
+    final cleanImageUrl = imageUrl.replaceAll(r'\/', '/');
+    
+    Widget defaultIcon = Icon(
+      isFemale ? Icons.face_3 : Icons.face,
+      size: 30,
+      color: isFemale ? Colors.pink.shade400 : Colors.blue.shade400,
+    );
+    
+    if (cleanImageUrl.isEmpty) {
+      return CircleAvatar(
+        radius: 30,
+        backgroundColor: colors.card,
+        child: defaultIcon,
+      );
+    }
+    
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: colors.card,
+      ),
+      child: ClipOval(
+        child: Image.network(
+          cleanImageUrl,
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+                color: isFemale ? Colors.pink.shade400 : Colors.blue.shade400,
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Center(child: defaultIcon);
+          },
+        ),
       ),
     );
   }

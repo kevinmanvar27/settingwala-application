@@ -64,6 +64,15 @@ import '../screens/theme_demo_screen.dart';
 import '../screens/example_screen.dart';
 import '../screens/slider_demo_screen.dart';
 
+// Seven Screens (Info pages)
+import '../screens/seven/About.dart';
+import '../screens/seven/Journey.dart';
+import '../screens/seven/Contact.dart';
+import '../screens/seven/Privacypolicy.dart';
+import '../screens/seven/Safety.dart';
+import '../screens/seven/Termsofservice.dart';
+import '../screens/seven/refand.dart';
+
 // Services (for models)
 import '../Service/event_service.dart';
 
@@ -135,6 +144,15 @@ class AppRoutes {
   static const String themeDemo = '/theme-demo';
   static const String example = '/example';
   static const String sliderDemo = '/slider-demo';
+  
+  // Seven Screens (Info pages)
+  static const String about = '/about';
+  static const String journey = '/journey';
+  static const String contact = '/contact';
+  static const String privacyPolicy = '/privacy-policy';
+  static const String safety = '/safety';
+  static const String termsOfService = '/terms-of-service';
+  static const String refundPolicy = '/refund-policy';
 
   // ══════════════════════════════════════════════════════════════════════════
   // ROUTE MAP (for screens without required arguments)
@@ -171,6 +189,14 @@ class AppRoutes {
     themeDemo: (context) => const ThemeDemoScreen(),
     example: (context) => const ExampleScreen(),
     sliderDemo: (context) => const SliderDemoScreen(),
+    // Seven Screens (Info pages)
+    about: (context) => const AboutScreen(),
+    journey: (context) => const JourneyScreen(),
+    contact: (context) => const ContactScreen(),
+    privacyPolicy: (context) => const PrivacyPolicyScreen(),
+    safety: (context) => const SafetyScreen(),
+    termsOfService: (context) => const TermsofServiceScreen(),
+    refundPolicy: (context) => const RefundScreen(),
   };
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -285,13 +311,13 @@ class AppRoutes {
   }
   
   /// Navigate to Chat
-  static void toChat(BuildContext context, {
+  static Future<void> toChat(BuildContext context, {
     required String profileName,
     String? profileImage,
     required DateTime meetingTime,
     required int bookingId,
   }) {
-    navigateTo(context, chat, arguments: {
+    return navigateTo(context, chat, arguments: {
       'profileName': profileName,
       'profileImage': profileImage,
       'meetingTime': meetingTime,

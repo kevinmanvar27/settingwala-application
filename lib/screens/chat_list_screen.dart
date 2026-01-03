@@ -3,7 +3,7 @@ import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../Service/chat_service.dart';
 import '../model/getchatmodel.dart';
-import 'chat_screen.dart';
+import '../routes/app_routes.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -59,7 +59,11 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
 
       if (result != null && result.success) {
         setState(() {
-          _chats = result.data.chats;
+          // Filter out completed chats - only show active chats
+          _chats = result.data.chats.where((chat) {
+            final status = chat.bookingStatus.toLowerCase();
+            return status != 'completed';
+          }).toList();
           _isLoading = false;
         });
         _animationController.forward();
@@ -425,20 +429,17 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
       ),
       margin: EdgeInsets.only(bottom: cardMarginBottom),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          // Use route-based navigation instead of Navigator.push
+          await AppRoutes.toChat(
             context,
-            MaterialPageRoute(
-              builder: (context) => ChatScreen(
-                profileName: chat.otherUser.name,
-                profileImage: avatarUrl,
-                meetingTime: chat.bookingDate,
-                bookingId: chat.bookingId,
-              ),
-            ),
-          ).then((_) {
-            _loadChats();
-          });
+            profileName: chat.otherUser.name,
+            profileImage: avatarUrl,
+            meetingTime: chat.bookingDate,
+            bookingId: chat.bookingId,
+          );
+          // Reload chats when returning from chat screen
+          _loadChats();
         },
         borderRadius: BorderRadius.circular(cardRadius),
         child: Padding(

@@ -106,7 +106,7 @@ class User {
   dynamic profilePictureUrl;
   dynamic gender;
   dynamic dateOfBirth;
-  dynamic age;
+  int? age;
   dynamic city;
   dynamic state;
   dynamic country;
@@ -232,7 +232,7 @@ class User {
     profilePictureUrl = json['profile_picture_url'];
     gender = json['gender'];
     dateOfBirth = json['date_of_birth'];
-    age = json['age'];
+    age = json['age'] != null ? (json['age'] is int ? json['age'] : (json['age'] as num).toInt()) : null;
     city = json['city'];
     state = json['state'];
     country = json['country'];

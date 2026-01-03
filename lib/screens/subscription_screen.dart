@@ -13,7 +13,7 @@ import '../Service/subscription_service.dart';
 import '../model/getsubscriptionmodel.dart';
 import '../model/postpurchasemodel.dart';
 import '../utils/responsive.dart';
-import 'time_spending_screen.dart';
+import '../routes/app_routes.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -39,6 +39,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Future<void> _step1_loadSubscriptionPlans() async {
+    
+    
     
     
     
@@ -92,6 +94,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       
       
       
+      
 
       if (purchaseResult.data.paymentCompleted) {
         
@@ -115,7 +118,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       return;
     }
 
-    
     
     
     
@@ -206,7 +208,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     
     
     
-    
 
     _showMessage('Verifying payment...', isLoading: true);
 
@@ -262,13 +263,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     
     
     
+    
 
     _showMessage('Payment successful! Subscription activated.', isSuccess: true);
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const TimeSpendingScreen()),
-    );
+    AppRoutes.navigateAndReplace(context, AppRoutes.timeSpending);
   }
 
   void _onPaymentFailure(String errorMessage) {

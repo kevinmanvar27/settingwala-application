@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
-import 'person_profile_screen.dart';
+import '../routes/app_routes.dart';  // Add route-based navigation
 import '../Service/user_service.dart';
 import '../model/getusersmodel.dart';
 import 'package:settingwala/utils/api_constants.dart';
@@ -138,7 +138,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
     return {
       'id': user.id,
       'name': user.name,
-      'age': user.age?.toInt() ?? 0,
+      'age': user.age ?? 0,
       'location': buildLocation(),
       'distance': '${(user.id % 5) + 1}.${user.id % 10} km away',
       'bio': user.bio ?? 'No bio available',
@@ -210,6 +210,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime ?? TimeOfDay.now(),
+      initialEntryMode: TimePickerEntryMode.input,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -220,7 +221,12 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
               onSurface: colors.textPrimary,
             ),
           ),
-          child: child!,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              alwaysUse24HourFormat: false,
+            ),
+            child: child!,
+          ),
         );
       },
     );
@@ -786,12 +792,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
                                 return PersonCard(
                                   person: person,
                                   onViewProfile: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => PersonProfileScreen(person: person),
-                                      ),
-                                    );
+                                    AppRoutes.toPersonProfile(context, person);
                                   },
                                 );
                               },

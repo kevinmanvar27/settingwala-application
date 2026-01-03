@@ -33,6 +33,7 @@ class ProfileService {
       
       
 
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return GetProfileModel.fromJson(data);
@@ -68,6 +69,7 @@ class ProfileService {
       
       
       
+
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -143,6 +145,7 @@ class ProfileService {
       
       
 
+
       final response = await http.put(
         Uri.parse('${ApiConstants.baseUrl}/profile'),
         headers: {
@@ -156,7 +159,7 @@ class ProfileService {
       
       
       
-      
+
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -212,6 +215,7 @@ class ProfileService {
       
       
 
+
       final response = await http.put(
         Uri.parse('${ApiConstants.baseUrl}/profile/privacy-settings'),
         headers: {
@@ -225,7 +229,7 @@ class ProfileService {
       
       
       
-      
+
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
@@ -242,5 +246,148 @@ class ProfileService {
       
       return {'success': false, 'message': e.toString()};
     }
+  }
+
+  /// Update couple activity settings
+  /// Enables/disables couple activity feature for the user
+  static Future<ProfileUpdateResponse> updateCoupleActivitySettings({
+    required bool isCoupleActivityEnabled,
+  }) async {
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return ProfileUpdateResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      final body = {
+        'is_couple_activity_enabled': isCoupleActivityEnabled,
+      };
+
+      final response = await http.put(
+        Uri.parse('${ApiConstants.baseUrl}/profile/couple-activity'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return ProfileUpdateResponse.fromJson(responseData);
+      } else if (response.statusCode == 403) {
+        return ProfileUpdateResponse(
+          success: false,
+          message: responseData['message'] ?? 'Couple Activity feature is not available.',
+        );
+      } else {
+        return ProfileUpdateResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to update couple activity settings.',
+        );
+      }
+    } catch (e) {
+      return ProfileUpdateResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Update sugar partner settings
+  /// Sets sugar partner types, bio, and expectations
+  static Future<ProfileUpdateResponse> updateSugarPartnerSettings({
+    String? whatIAm, // sugar_daddy, sugar_mommy, sugar_boy, sugar_babe
+    List<String>? whatIWant, // List of sugar partner types user is looking for
+    String? sugarPartnerBio,
+    String? sugarPartnerExpectations,
+  }) async {
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return ProfileUpdateResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      final body = <String, dynamic>{};
+      if (whatIAm != null) body['what_i_am'] = whatIAm;
+      if (whatIWant != null) body['what_i_want'] = whatIWant;
+      if (sugarPartnerBio != null) body['sugar_partner_bio'] = sugarPartnerBio;
+      if (sugarPartnerExpectations != null) body['sugar_partner_expectations'] = sugarPartnerExpectations;
+
+      final response = await http.put(
+        Uri.parse('${ApiConstants.baseUrl}/profile/sugar-partner'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return ProfileUpdateResponse.fromJson(responseData);
+      } else if (response.statusCode == 403) {
+        return ProfileUpdateResponse(
+          success: false,
+          message: responseData['message'] ?? 'Sugar Partner feature is not available.',
+        );
+      } else if (response.statusCode == 422) {
+        // Validation error - likely missing gallery images
+        return ProfileUpdateResponse(
+          success: false,
+          message: responseData['message'] ?? 'Please upload photos to your gallery first.',
+          errors: responseData['errors'],
+        );
+      } else {
+        return ProfileUpdateResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to update sugar partner settings.',
+        );
+      }
+    } catch (e) {
+      return ProfileUpdateResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+}
+
+// ============================================
+// Profile Update Response Model
+// ============================================
+
+class ProfileUpdateResponse {
+  final bool success;
+  final String? message;
+  final Map<String, dynamic>? user;
+  final Map<String, dynamic>? errors;
+
+  ProfileUpdateResponse({
+    required this.success,
+    this.message,
+    this.user,
+    this.errors,
+  });
+
+  factory ProfileUpdateResponse.fromJson(Map<String, dynamic> json) {
+    return ProfileUpdateResponse(
+      success: json['success'] ?? false,
+      message: json['message'],
+      user: json['data']?['user'],
+      errors: json['errors'],
+    );
   }
 }

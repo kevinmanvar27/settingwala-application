@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:settingwala/screens/person_profile_screen.dart';
+import '../routes/app_routes.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../Service/user_service.dart';
@@ -114,14 +114,14 @@ class _FindPersonPageState extends State<FindPersonPage> with SingleTickerProvid
     return {
       'id': user.id,
       'name': user.name,
-      'age': user.age?.toInt() ?? 0,
+      'age': user.age ?? 0,
       'location': user.city ?? 'Unknown',
       'gender': user.gender ?? 'Female',
       'price': double.tryParse(user.hourlyRate) ?? 0,
       'dob': '',
       'hobbies': <String>[],
       'interests': <String>[],
-      'expectations': <String>[],
+      'expectations': <String>[], 
       'gallery': user.firstGalleryImage != null && user.firstGalleryImage!.isNotEmpty 
           ? [getFullImageUrl(user.firstGalleryImage)] 
           : <String>[],
@@ -945,12 +945,18 @@ class _FindPersonPageState extends State<FindPersonPage> with SingleTickerProvid
             final time = await showTimePicker(
               context: ctx,
               initialTime: TimeOfDay.now(),
+              initialEntryMode: TimePickerEntryMode.input,
               builder: (context, child) {
                 return Theme(
                   data: Theme.of(context).copyWith(
                     colorScheme: ColorScheme.light(primary: primaryColor),
                   ),
-                  child: child!,
+                  child: MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      alwaysUse24HourFormat: false,
+                    ),
+                    child: child!,
+                  ),
                 );
               },
             );
@@ -1279,12 +1285,7 @@ class _FindPersonPageState extends State<FindPersonPage> with SingleTickerProvid
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PersonProfileScreen(person: person),
-                          ),
-                        );
+                        AppRoutes.toPersonProfile(context, person);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,

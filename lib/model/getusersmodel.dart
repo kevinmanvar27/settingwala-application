@@ -53,7 +53,7 @@ class User {
   int id;
   String name;
   String profilePicture;
-  double? age;
+  int? age;
   dynamic city;
   dynamic state;
   dynamic bio;
@@ -125,7 +125,7 @@ class User {
     id: json["id"] ?? 0,
     name: json["name"] ?? '',
     profilePicture: json["profile_picture"] ?? '',
-    age: json["age"]?.toDouble(),
+    age: json["age"] != null ? (json["age"] is int ? json["age"] : (json["age"] as num).toInt()) : null,
     city: json["city"],
     state: json["state"],
     bio: json["bio"],

@@ -39,9 +39,6 @@ class BookingService {
 
       
       
-      
-      
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
@@ -95,10 +92,6 @@ class BookingService {
       );
 
       
-      
-      
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return GetBookingsResponse.fromJson(responseData);
@@ -125,6 +118,24 @@ class BookingService {
     }
   }
 
+  /// Check if user has any accepted bookings
+  /// Returns true if there's at least one booking with status 'accepted'
+  static Future<bool> hasAcceptedBookings() async {
+    try {
+      final response = await getBookings();
+      if (response == null || !response.success) {
+        return false;
+      }
+      
+      // Check if any booking has 'accepted' status
+      return response.bookings.any(
+        (booking) => booking.status.toLowerCase() == 'accepted'
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
   static Future<BookingResponse?> getBookingById(int bookingId) async {
     try {
       final token = await _getToken();
@@ -147,10 +158,6 @@ class BookingService {
       );
 
       
-      
-      
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
@@ -215,6 +222,195 @@ class BookingService {
     }
   }
 
+  /// Update booking with time change - handles payment difference
+  /// If new duration > old duration: charges extra (wallet first, then cashfree)
+  /// If new duration < old duration: refunds difference to wallet
+  static Future<UpdateBookingResponse> updateBookingWithPayment(
+    int bookingId, {
+    DateTime? bookingDate,
+    String? startTime,
+    String? endTime,
+    String? notes,
+  }) async {
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return UpdateBookingResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      final body = <String, dynamic>{};
+      if (bookingDate != null) {
+        body['booking_date'] = bookingDate.toIso8601String().split('T')[0];
+      }
+      if (startTime != null) {
+        body['start_time'] = startTime;
+      }
+      if (endTime != null) {
+        body['end_time'] = endTime;
+      }
+      if (notes != null) {
+        body['notes'] = notes;
+      }
+
+      final url = '${ApiConstants.baseUrl}/bookings/$bookingId';
+
+      final response = await http.put(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return UpdateBookingResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        return UpdateBookingResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else if (response.statusCode == 402) {
+        // Payment required - need to pay extra amount
+        return UpdateBookingResponse.fromJson(responseData);
+      } else if (response.statusCode == 403) {
+        return UpdateBookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Only the client can update the booking.',
+        );
+      } else if (response.statusCode == 400) {
+        return UpdateBookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Cannot update booking in current status.',
+        );
+      } else if (response.statusCode == 422) {
+        return UpdateBookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Validation error. Please check your input.',
+        );
+      } else {
+        return UpdateBookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to update booking.',
+        );
+      }
+    } catch (e) {
+      return UpdateBookingResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Initiate payment for booking update difference
+  /// Called when duration increases and extra payment is needed
+  static Future<BookingPaymentModel?> initiateUpdatePayment(
+    int bookingId,
+    double differenceAmount, {
+    String preferredPaymentMethod = 'wallet',
+  }) async {
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return BookingPaymentModel(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/initiate-update-payment';
+      final body = {
+        'amount': differenceAmount,
+        'payment_method': preferredPaymentMethod,
+      };
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        return BookingPaymentModel.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        return BookingPaymentModel(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        return BookingPaymentModel(
+          success: false,
+          message: responseData['message'] ?? 'Failed to initiate update payment.',
+        );
+      }
+    } catch (e) {
+      return BookingPaymentModel(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Cancel booking and refund to wallet
+  /// Money will be refunded to user's wallet
+  static Future<CancelBookingResponse> cancelBookingWithRefund(int bookingId, {String? reason}) async {
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return CancelBookingResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      final body = <String, dynamic>{};
+      if (reason != null && reason.isNotEmpty) {
+        body['reason'] = reason;
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/bookings/$bookingId/cancel'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return CancelBookingResponse.fromJson(responseData);
+      } else {
+        return CancelBookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to cancel booking.',
+        );
+      }
+    } catch (e) {
+      return CancelBookingResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
   static Future<BookingResponse?> updateBooking(
       int bookingId, {
         DateTime? bookingDate,
@@ -250,10 +446,6 @@ class BookingService {
       final url = '${ApiConstants.baseUrl}/bookings/$bookingId';
 
       
-      
-      
-      
-
       final response = await http.put(
         Uri.parse(url),
         headers: {
@@ -265,10 +457,6 @@ class BookingService {
       );
 
       
-      
-      
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
@@ -334,12 +522,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -351,12 +533,8 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
-        
-        
         
         
         return BookingPaymentModel.fromJson(responseData);
@@ -397,12 +575,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -413,8 +585,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         
@@ -483,12 +653,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -500,8 +664,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
         
@@ -541,12 +703,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -557,8 +713,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
@@ -608,13 +762,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-      
-
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -626,8 +773,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
@@ -673,13 +818,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-      
-
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -690,8 +828,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return AvailableSlotsResponse.fromJson(responseData);
@@ -737,12 +873,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -753,8 +883,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return CalendarBookingsResponse.fromJson(responseData);
@@ -795,12 +923,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -811,8 +933,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return UserAvailabilityResponse.fromJson(responseData);
@@ -858,12 +978,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -874,8 +988,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return ChatDetailsResponse.fromJson(responseData);
@@ -921,12 +1033,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -937,8 +1043,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return ProviderBookingStatusResponse.fromJson(responseData);
@@ -1006,12 +1110,6 @@ class BookingService {
 
        
       
-      
-      
-      
-      
-      
-
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -1023,8 +1121,6 @@ class BookingService {
       );
 
       
-      
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
         
@@ -1430,6 +1526,174 @@ class AvailabilitySlot {
       startTime: json['start_time'] ?? json['from'] ?? '',
       endTime: json['end_time'] ?? json['to'] ?? '',
       isBooked: json['is_booked'] == true || json['booked'] == true,
+    );
+  }
+}
+
+/// Response model for update booking with payment handling
+class UpdateBookingResponse {
+  final bool success;
+  final String message;
+  final UpdateBookingData? data;
+  final bool requiresPayment;
+  final PaymentRequirement? paymentRequirement;
+
+  UpdateBookingResponse({
+    required this.success,
+    required this.message,
+    this.data,
+    this.requiresPayment = false,
+    this.paymentRequirement,
+  });
+
+  factory UpdateBookingResponse.fromJson(Map<String, dynamic> json) {
+    return UpdateBookingResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'] != null ? UpdateBookingData.fromJson(json['data']) : null,
+      requiresPayment: json['requires_payment'] ?? false,
+      paymentRequirement: json['payment_requirement'] != null 
+          ? PaymentRequirement.fromJson(json['payment_requirement']) 
+          : null,
+    );
+  }
+}
+
+class UpdateBookingData {
+  final BookingData? booking;
+  final RefundInfo? refundInfo;
+  final double? newTotalAmount;
+  final double? oldTotalAmount;
+  final double? differenceAmount;
+
+  UpdateBookingData({
+    this.booking,
+    this.refundInfo,
+    this.newTotalAmount,
+    this.oldTotalAmount,
+    this.differenceAmount,
+  });
+
+  factory UpdateBookingData.fromJson(Map<String, dynamic> json) {
+    return UpdateBookingData(
+      booking: json['booking'] != null ? BookingData.fromJson(json['booking']) : null,
+      refundInfo: json['refund_info'] != null ? RefundInfo.fromJson(json['refund_info']) : null,
+      newTotalAmount: _parseDoubleValue(json['new_total_amount']),
+      oldTotalAmount: _parseDoubleValue(json['old_total_amount']),
+      differenceAmount: _parseDoubleValue(json['difference_amount']),
+    );
+  }
+
+  static double? _parseDoubleValue(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+}
+
+class RefundInfo {
+  final double amount;
+  final String refundedTo;
+  final String? transactionId;
+
+  RefundInfo({
+    required this.amount,
+    required this.refundedTo,
+    this.transactionId,
+  });
+
+  factory RefundInfo.fromJson(Map<String, dynamic> json) {
+    return RefundInfo(
+      amount: _parseDoubleValue(json['amount']) ?? 0.0,
+      refundedTo: json['refunded_to'] ?? 'wallet',
+      transactionId: json['transaction_id'],
+    );
+  }
+
+  static double? _parseDoubleValue(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+}
+
+class PaymentRequirement {
+  final double totalDue;
+  final double walletBalance;
+  final double walletAmountToUse;
+  final double cashfreeAmountDue;
+  final bool canPayFromWallet;
+
+  PaymentRequirement({
+    required this.totalDue,
+    required this.walletBalance,
+    required this.walletAmountToUse,
+    required this.cashfreeAmountDue,
+    required this.canPayFromWallet,
+  });
+
+  factory PaymentRequirement.fromJson(Map<String, dynamic> json) {
+    return PaymentRequirement(
+      totalDue: _parseDoubleValue(json['total_due']) ?? 0.0,
+      walletBalance: _parseDoubleValue(json['wallet_balance']) ?? 0.0,
+      walletAmountToUse: _parseDoubleValue(json['wallet_amount_to_use']) ?? 0.0,
+      cashfreeAmountDue: _parseDoubleValue(json['cashfree_amount_due']) ?? 0.0,
+      canPayFromWallet: json['can_pay_from_wallet'] ?? false,
+    );
+  }
+
+  static double? _parseDoubleValue(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+}
+
+/// Response model for cancel booking with refund
+class CancelBookingResponse {
+  final bool success;
+  final String message;
+  final CancelBookingData? data;
+
+  CancelBookingResponse({
+    required this.success,
+    required this.message,
+    this.data,
+  });
+
+  factory CancelBookingResponse.fromJson(Map<String, dynamic> json) {
+    return CancelBookingResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'] != null ? CancelBookingData.fromJson(json['data']) : null,
+    );
+  }
+}
+
+class CancelBookingData {
+  final int? bookingId;
+  final String? status;
+  final RefundInfo? refundInfo;
+
+  CancelBookingData({
+    this.bookingId,
+    this.status,
+    this.refundInfo,
+  });
+
+  factory CancelBookingData.fromJson(Map<String, dynamic> json) {
+    return CancelBookingData(
+      bookingId: json['booking_id'] ?? json['booking']?['id'],
+      status: json['status'] ?? json['booking']?['status'],
+      refundInfo: json['refund_info'] != null 
+          ? RefundInfo.fromJson(json['refund_info']) 
+          : (json['refund'] != null ? RefundInfo.fromJson(json['refund']) : null),
     );
   }
 }

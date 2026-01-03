@@ -770,7 +770,7 @@ class CoupleActivityUser {
       name: json['name'],
       email: json['email'],
       profilePhoto: json['profile_photo'] ?? json['profile_photo_url'],
-      age: json['age'],
+      age: json['age'] != null ? (json['age'] is int ? json['age'] : (json['age'] as num).toInt()) : null,
       gender: json['gender'],
       city: json['city'],
       rating: json['rating'] != null ? (json['rating']).toDouble() : null,

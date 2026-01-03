@@ -4,7 +4,7 @@ import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
 import '../Service/sugar_partner_service.dart';
-import 'sugar_partner_exchanges_screen.dart';
+import '../routes/app_routes.dart';
 
 class SugarPartnerScreen extends StatefulWidget {
   const SugarPartnerScreen({super.key});
@@ -49,10 +49,6 @@ class _SugarPartnerScreenState extends State<SugarPartnerScreen> {
     
     
     
-    
-    
-    
-    
     try {
       final response = await SugarPartnerService.getPreferences();
       if (response.success && mounted) {
@@ -67,13 +63,6 @@ class _SugarPartnerScreenState extends State<SugarPartnerScreen> {
         });
         
         await _saveToPrefs();
-        
-        
-        
-        
-        
-        
-        
       }
     } catch (e) {
       
@@ -802,10 +791,7 @@ class _SugarPartnerScreenState extends State<SugarPartnerScreen> {
       width: double.infinity,
       child: OutlinedButton(
         onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SugarPartnerExchangesScreen()),
-          );
+          AppRoutes.navigateTo(context, AppRoutes.sugarPartnerExchanges);
         },
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryColor,
@@ -939,21 +925,12 @@ class _SugarPartnerScreenState extends State<SugarPartnerScreen> {
         expectations: _expectationsController.text.isNotEmpty ? _expectationsController.text : null,
       );
       
-      
-      
-      
-      
-      
-      
-      
-      
       if (response.success) {
         _showSnackBar('Sugar Partner settings saved successfully!', AppColors.success, colors, snackbarRadius, snackbarFontSize);
       } else {
         _showSnackBar(response.message.isNotEmpty ? response.message : 'Failed to save settings', AppColors.error, colors, snackbarRadius, snackbarFontSize);
       }
     } catch (e) {
-      
       _showSnackBar('Failed to save settings. Please try again.', AppColors.error, colors, snackbarRadius, snackbarFontSize);
     } finally {
       if (mounted) {

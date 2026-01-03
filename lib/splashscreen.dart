@@ -5,6 +5,7 @@ import 'firstscreen.dart';
 import 'google.dart';
 import 'theme/app_colors.dart';
 import 'widgets/themed_logo.dart';
+import 'providers/chat_icon_provider.dart';
 
 
 class Splashscreen extends StatefulWidget {
@@ -44,6 +45,8 @@ class _SplashscreenState extends State<Splashscreen> with SingleTickerProviderSt
 
     if (isLoggedIn) {
       if (!mounted) return;
+      // Refresh chat icon visibility when user is logged in
+      ChatIconProvider.maybeOf(context)?.refresh();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => MainNavigationScreen()),
       );

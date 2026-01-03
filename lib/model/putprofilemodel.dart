@@ -29,7 +29,7 @@ class User {
   String profilePictureUrl;
   String gender;
   DateTime dateOfBirth;
-  double age;
+  int age;
   dynamic interests;
   String expectation;
   bool isProfileComplete;

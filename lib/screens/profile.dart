@@ -1,20 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:settingwala/screens/time_spending_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
-import 'profile_settings_screen.dart';
-import 'gallery_screen.dart';
-import 'reviews_screen.dart';
-import 'notifications_screen.dart';
-import 'notifications_list_screen.dart';
-import 'privacy_settings_screen.dart';
-import 'sugar_partner_screen.dart';
 import '../Service/profile_service.dart';
 import '../Service/completion_status_service.dart';
 import '../Service/wallet_service.dart';
+import '../routes/app_routes.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -234,10 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         if (profileCompletion >= 100) {
           if (!mounted) return;
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const TimeSpendingScreen()),
-          );
+          AppRoutes.navigateTo(context, AppRoutes.timeSpending);
         } else {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -247,10 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               duration: const Duration(seconds: 2),
             ),
           );
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ProfileSettingsScreen()),
-          );
+          AppRoutes.navigateTo(context, AppRoutes.profileSettings);
         }
       } else {
         if (!mounted) return;
@@ -662,12 +649,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'title': 'Personal Information',
         'icon': Icons.person,
         'onTap': () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ProfileSettingsScreen(),
-            ),
-          );
+          await AppRoutes.navigateTo(context, AppRoutes.profileSettings);
           await _refreshData();
         },
       },
@@ -677,24 +659,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'icon': Icons.favorite,
           'color': Colors.pink,
           'onTap': () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SugarPartnerScreen(),
-              ),
-            );
+            AppRoutes.navigateTo(context, AppRoutes.sugarPartner);
           },
         },
       {
         'title': 'Gallery',
         'icon': Icons.photo_library,
         'onTap': () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const GalleryScreen(),
-            ),
-          );
+          AppRoutes.navigateTo(context, AppRoutes.gallery);
         },
       },
       if (_isTimeSpendingEnabled)
@@ -707,48 +679,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'title': 'Reviews',
         'icon': Icons.star,
         'onTap': () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ReviewsScreen(),
-            ),
-          );
+          AppRoutes.navigateTo(context, AppRoutes.reviews);
         },
       },
       {
         'title': 'Notifications',
         'icon': Icons.notifications,
         'onTap': () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const NotificationsListScreen(),
-            ),
-          );
+          AppRoutes.navigateTo(context, AppRoutes.notificationsList);
         },
       },
       {
         'title': 'Notification Settings',
         'icon': Icons.notifications_active,
         'onTap': () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const NotificationsScreen(),
-            ),
-          );
+          AppRoutes.navigateTo(context, AppRoutes.notifications);
         },
       },
       {
         'title': 'Privacy Settings',
         'icon': Icons.shield_outlined,
         'onTap': () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const PrivacySettingsScreen(),
-            ),
-          );
+          await AppRoutes.navigateTo(context, AppRoutes.privacySettings);
           await _refreshData();
         },
       },

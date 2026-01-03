@@ -561,7 +561,7 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
     );
   }
 
-  void _unblockUser(BlockedUser user, AppColorSet colors, Color primaryColor, bool isDark) {
+  Future<void> _unblockUser(BlockedUser user, AppColorSet colors, Color primaryColor, bool isDark) async {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
     final isTablet = screenWidth >= 600;
@@ -572,9 +572,10 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
     final contentFontSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 13.0 : 14.0;
     final buttonFontSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 13.0 : 14.0;
     
-    showDialog(
+    // Show confirmation dialog and wait for result
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: colors.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(dialogRadius),
@@ -595,7 +596,7 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(
               'Cancel',
               style: TextStyle(
@@ -605,65 +606,7 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => Center(
-                  child: CircularProgressIndicator(color: primaryColor),
-                ),
-              );
-              
-              final result = await BlockedUsersService.unblockUser(user.id);
-              
-              if (mounted) Navigator.pop(context);
-              
-              if (result != null && (result['success'] == true || result['status'] == true)) {
-                setState(() {
-                  _blockedUsers.removeWhere((u) => u.id == user.id);
-                });
-                
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        '${user.name} has been unblocked', 
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: contentFontSize,
-                        ),
-                      ),
-                      backgroundColor: primaryColor,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(dialogRadius * 0.5),
-                      ),
-                    ),
-                  );
-                }
-              } else {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        result?['message'] ?? 'Failed to unblock user', 
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: contentFontSize,
-                        ),
-                      ),
-                      backgroundColor: AppColors.error,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(dialogRadius * 0.5),
-                      ),
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryColor,
               foregroundColor: isDark ? AppColors.black : AppColors.white,
@@ -679,5 +622,133 @@ class _RejectionsScreenState extends State<RejectionsScreen> {
         ],
       ),
     );
+    
+    // User cancelled
+    if (confirmed != true || !mounted) return;
+    
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (loadingContext) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(dialogRadius),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: primaryColor),
+                const SizedBox(height: 16),
+                Text(
+                  'Unblocking user...',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: contentFontSize,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    try {
+      final result = await BlockedUsersService.unblockUser(user.id);
+      
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+      
+      if (!mounted) return;
+      
+      if (result != null && (result['success'] == true || result['status'] == true)) {
+        setState(() {
+          _blockedUsers.removeWhere((u) => u.id == user.id);
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: AppColors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  '${user.name} has been unblocked', 
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: contentFontSize,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: primaryColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(dialogRadius * 0.5),
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: AppColors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    result?['message'] ?? 'Failed to unblock user', 
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: contentFontSize,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(dialogRadius * 0.5),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog on error
+      if (mounted) Navigator.of(context).pop();
+      
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error_outline, color: AppColors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Error: ${e.toString()}', 
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: contentFontSize,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(dialogRadius * 0.5),
+          ),
+        ),
+      );
+    }
   }
 }

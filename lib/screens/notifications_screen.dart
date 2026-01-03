@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
-import 'home_page.dart';
+import '../routes/app_routes.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -667,6 +667,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: initialTime,
+      initialEntryMode: TimePickerEntryMode.input,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -687,7 +688,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ),
             ),
           ),
-          child: child!,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              alwaysUse24HourFormat: false,
+            ),
+            child: child!,
+          ),
         );
       },
     );
@@ -740,11 +746,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           );
           
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
-            (route) => false,
-          );
+          AppRoutes.navigateAndClearStack(context, AppRoutes.homePage);
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,

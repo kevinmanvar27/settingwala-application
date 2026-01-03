@@ -3,8 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
-import 'main_navigation_screen.dart';
-import 'subscription_screen.dart';
+import '../routes/app_routes.dart';  // Add route-based navigation
 import '../utils/responsive.dart';
 import '../Service/subscription_service.dart';
 import '../Service/time_spending_service.dart';
@@ -434,8 +433,12 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
         final minute = int.parse(timeParts[1]);
         final isPM = parts[1].toUpperCase() == 'PM';
         
-        if (isPM && hour < 12) hour += 12;
-        if (!isPM && hour == 12) hour = 0;
+        if (isPM && hour < 12) {
+          hour += 12;
+        }
+        if (!isPM && hour == 12) {
+          hour = 0;
+        }
         
         initialTime = TimeOfDay(hour: hour, minute: minute);
       } catch (e) {
@@ -447,6 +450,7 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: initialTime,
+      initialEntryMode: TimePickerEntryMode.input,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -464,7 +468,12 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
               dialBackgroundColor: primaryColor.withOpacity(0.1),
             ),
           ),
-          child: child!,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              alwaysUse24HourFormat: false,
+            ),
+            child: child!,
+          ),
         );
       },
     );
@@ -617,11 +626,7 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
           ),
         );
 
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-          (route) => false,
-        );
+        AppRoutes.navigateAndClearStack(context, AppRoutes.mainNavigation);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -759,10 +764,7 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
             height: buttonHeight,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SubscriptionScreen()),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.subscription);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,

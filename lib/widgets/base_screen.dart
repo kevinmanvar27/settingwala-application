@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'custom_app_bar.dart';
 import 'custom_drawer.dart';
 import '../theme/app_colors.dart';
+import '../providers/chat_icon_provider.dart';
 
 class BaseScreen extends StatefulWidget {
   final Widget body;
@@ -13,6 +14,7 @@ class BaseScreen extends StatefulWidget {
   final FloatingActionButtonLocation? floatingActionButtonLocation;
   final Color? backgroundColor;
   final bool maintainFocus;
+  final bool? showChatIcon; // Nullable - when null, uses ChatIconProvider
 
   const BaseScreen({
     super.key,
@@ -25,6 +27,7 @@ class BaseScreen extends StatefulWidget {
     this.floatingActionButtonLocation,
     this.backgroundColor,
     this.maintainFocus = false,
+    this.showChatIcon, // Nullable - defaults to provider value when null
   });
 
   @override
@@ -37,31 +40,34 @@ class _BaseScreenState extends State<BaseScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final chatNotifier = ChatIconProvider.maybeOf(context);
 
-    return Scaffold(
-      key: _scaffoldKey,
-      resizeToAvoidBottomInset: true,
-      primary: true,
-      appBar: CustomAppBar(
-        scaffoldKey: _scaffoldKey,
-        title: widget.title,
-        showBackButton: widget.showBackButton,
-        actions: widget.actions,
-      ),
-      endDrawer: const CustomDrawer(),
-      body: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
+    // Use ListenableBuilder to rebuild AppBar when chat icon visibility changes
+    return ListenableBuilder(
+      listenable: chatNotifier ?? ChangeNotifier(),
+      builder: (context, child) {
+        return Scaffold(
+          key: _scaffoldKey,
+          resizeToAvoidBottomInset: true,
+          primary: true,
+          appBar: CustomAppBar(
+            scaffoldKey: _scaffoldKey,
+            title: widget.title,
+            showBackButton: widget.showBackButton,
+            actions: widget.actions,
+            showChatIcon: widget.showChatIcon, // Pass through nullable - CustomAppBar uses provider when null
           ),
-          child: widget.body,
-        ),
-      ),
-      bottomNavigationBar: widget.bottomNavigationBar,
-      floatingActionButton: widget.floatingActionButton,
-      floatingActionButtonLocation: widget.floatingActionButtonLocation,
-      backgroundColor: widget.backgroundColor ?? colors.background,
+          endDrawer: const CustomDrawer(),
+          body: SafeArea(
+            bottom: false,
+            child: widget.body,
+          ),
+          bottomNavigationBar: widget.bottomNavigationBar,
+          floatingActionButton: widget.floatingActionButton,
+          floatingActionButtonLocation: widget.floatingActionButtonLocation,
+          backgroundColor: widget.backgroundColor ?? colors.background,
+        );
+      },
     );
   }
 }

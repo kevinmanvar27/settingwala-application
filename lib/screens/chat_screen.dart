@@ -55,6 +55,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Timer? _refreshTimer;
   static const int _refreshIntervalSeconds = 5;
   
+  // Typing indicator state
+  bool _isOtherUserTyping = false;
+  Timer? _typingTimer;
+  Timer? _typingStatusTimer;
+  bool _iAmTyping = false;
+  static const int _typingTimeoutSeconds = 3; // Stop showing typing after 3 seconds of no update
+  
   @override
   void initState() {
     super.initState();
@@ -77,6 +84,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _initializeChat();
     
     _startAutoRefresh();
+    _startTypingStatusPolling();
+    
+    // Listen to text changes for typing indicator
+    _messageController.addListener(_onTextChanged);
   }
 
   @override
@@ -85,8 +96,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     if (state == AppLifecycleState.resumed) {
       _loadMessages();
       _startAutoRefresh();
+      _startTypingStatusPolling();
     } else if (state == AppLifecycleState.paused) {
       _stopAutoRefresh();
+      _stopTypingStatusPolling();
+      // Send stop typing when app goes to background
+      if (_iAmTyping) {
+        _sendTypingStatus(false);
+      }
     }
   }
 
@@ -102,6 +119,80 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _refreshTimer?.cancel();
     _refreshTimer = null;
   }
+
+  // ==================== TYPING INDICATOR METHODS ====================
+  
+  /// Start polling for other user's typing status
+  void _startTypingStatusPolling() {
+    _stopTypingStatusPolling();
+    // Poll every 2 seconds for typing status
+    _typingStatusTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _checkTypingStatus(),
+    );
+  }
+
+  void _stopTypingStatusPolling() {
+    _typingStatusTimer?.cancel();
+    _typingStatusTimer = null;
+  }
+
+  /// Check if other user is typing
+  Future<void> _checkTypingStatus() async {
+    try {
+      final response = await MessageService.getTypingStatus(widget.bookingId);
+      if (response != null && response.success && mounted) {
+        setState(() {
+          _isOtherUserTyping = response.isTyping;
+        });
+      }
+    } catch (e) {
+      // Silently fail - typing indicator is not critical
+    }
+  }
+
+  /// Called when text field content changes
+  void _onTextChanged() {
+    final hasText = _messageController.text.isNotEmpty;
+    
+    if (hasText && !_iAmTyping) {
+      // Started typing
+      _iAmTyping = true;
+      _sendTypingStatus(true);
+    }
+    
+    // Reset typing timeout timer
+    _typingTimer?.cancel();
+    if (hasText) {
+      _typingTimer = Timer(
+        Duration(seconds: _typingTimeoutSeconds),
+        () {
+          // User stopped typing (no input for 3 seconds)
+          if (_iAmTyping) {
+            _iAmTyping = false;
+            _sendTypingStatus(false);
+          }
+        },
+      );
+    } else {
+      // Text is empty - stop typing
+      if (_iAmTyping) {
+        _iAmTyping = false;
+        _sendTypingStatus(false);
+      }
+    }
+  }
+
+  /// Send typing status to server
+  Future<void> _sendTypingStatus(bool isTyping) async {
+    try {
+      await MessageService.sendTypingStatus(widget.bookingId, isTyping);
+    } catch (e) {
+      // Silently fail - typing indicator is not critical
+    }
+  }
+
+  // ==================== END TYPING INDICATOR METHODS ====================
 
   Future<void> _loadMessagesQuietly() async {
     try {
@@ -120,21 +211,46 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         
         newMessages.sort((a, b) => a.time.compareTo(b.time));
         
-        if (newMessages.length != _messages.length) {
+        // Check if messages changed (new messages OR read status changed)
+        final hasChanges = _hasMessageChanges(newMessages);
+        
+        if (hasChanges) {
+          final hasNewMessages = newMessages.length != _messages.length;
+          
           setState(() {
             _messages = newMessages;
           });
           
-          MessageService.markAsRead(widget.bookingId);
-          
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _scrollToBottom();
-          });
+          // Only mark as read and scroll if there are new messages
+          if (hasNewMessages) {
+            MessageService.markAsRead(widget.bookingId);
+            
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _scrollToBottom();
+            });
+          }
         }
       }
     } catch (e) {
       
     }
+  }
+  
+  /// Check if messages have changed (new messages or read status updated)
+  bool _hasMessageChanges(List<ChatMessage> newMessages) {
+    // Different count = definitely changed
+    if (newMessages.length != _messages.length) {
+      return true;
+    }
+    
+    // Same count - check if any read status changed
+    for (int i = 0; i < newMessages.length; i++) {
+      if (newMessages[i].isRead != _messages[i].isRead) {
+        return true; // Read status changed - blue tick update needed
+      }
+    }
+    
+    return false;
   }
 
   Future<void> _initializeChat() async {
@@ -196,6 +312,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   @override
   void dispose() {
     _stopAutoRefresh();
+    _stopTypingStatusPolling();
+    _typingTimer?.cancel();
+    _messageController.removeListener(_onTextChanged);
     WidgetsBinding.instance.removeObserver(this);
     _messageController.dispose();
     _scrollController.dispose();
@@ -300,6 +419,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return months[month - 1];
+  }
+
+  /// Build animated typing dots indicator
+  Widget _buildTypingDots(Color color) {
+    return _TypingDotsAnimation(color: color);
   }
 
   @override
@@ -541,6 +665,29 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                               ),
               ),
               
+              // Typing indicator
+              if (_isOtherUserTyping)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: inputBarPaddingH, vertical: 8),
+                  color: colors.card.withOpacity(0.5),
+                  child: Row(
+                    children: [
+                      SizedBox(width: 8),
+                      _buildTypingDots(primaryColor),
+                      SizedBox(width: 8),
+                      Text(
+                        '${widget.profileName} is typing...',
+                        style: TextStyle(
+                          color: colors.textTertiary,
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
+              // Input bar
               Container(
                 padding: EdgeInsets.symmetric(horizontal: inputBarPaddingH, vertical: inputBarPaddingV),
                 color: colors.card,
@@ -874,6 +1021,73 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Animated typing dots widget
+class _TypingDotsAnimation extends StatefulWidget {
+  final Color color;
+  
+  const _TypingDotsAnimation({required this.color});
+  
+  @override
+  State<_TypingDotsAnimation> createState() => _TypingDotsAnimationState();
+}
+
+class _TypingDotsAnimationState extends State<_TypingDotsAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+  }
+  
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return SizedBox(
+          width: 28,
+          height: 16,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(3, (index) {
+              // Calculate animation phase for each dot (staggered)
+              final phase = (_controller.value + (index * 0.33)) % 1.0;
+              // Create bounce effect
+              final bounce = phase < 0.5 
+                  ? phase * 2 
+                  : 2 - (phase * 2);
+              final offset = -4 * bounce;
+              
+              return Transform.translate(
+                offset: Offset(0, offset),
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: widget.color.withOpacity(0.8),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      },
     );
   }
 }

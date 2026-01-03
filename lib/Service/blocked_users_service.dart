@@ -79,7 +79,7 @@ class BlockedUsersService {
       final token = await _getToken();
 
       if (token == null) {
-        return null;
+        return {'success': false, 'message': 'Authentication required'};
       }
 
       final response = await http.delete(
@@ -89,6 +89,11 @@ class BlockedUsersService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Request timed out. Please try again.');
+        },
       );
 
       if (response.statusCode == 200 || response.statusCode == 204) {
@@ -97,7 +102,14 @@ class BlockedUsersService {
         }
         return {'success': true, 'message': 'User unblocked successfully'};
       } else {
-        return jsonDecode(response.body);
+        if (response.body.isNotEmpty) {
+          try {
+            return jsonDecode(response.body);
+          } catch (_) {
+            return {'success': false, 'message': 'Server error: ${response.statusCode}'};
+          }
+        }
+        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};

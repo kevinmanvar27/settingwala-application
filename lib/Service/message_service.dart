@@ -622,6 +622,56 @@ class MessageService {
       );
     }
   }
+
+  /// Send typing status to server
+  /// Call this when user starts/stops typing
+  static Future<bool> sendTypingStatus(int bookingId, bool isTyping) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/chat/booking/$bookingId/typing'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'is_typing': isTyping,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Get typing status of other user in chat
+  static Future<TypingStatusResponse?> getTypingStatus(int bookingId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/chat/booking/$bookingId/typing'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return TypingStatusResponse.fromJson(json);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
 class MessagesResponse {
@@ -909,6 +959,27 @@ class BlockUserResponse {
       success: json['success'] ?? false,
       message: json['message'] ?? '',
       isBlocked: json['data']?['is_blocked'],
+    );
+  }
+}
+
+/// Response for typing status API
+class TypingStatusResponse {
+  final bool success;
+  final bool isTyping;
+  final String? userName;
+
+  TypingStatusResponse({
+    required this.success,
+    required this.isTyping,
+    this.userName,
+  });
+
+  factory TypingStatusResponse.fromJson(Map<String, dynamic> json) {
+    return TypingStatusResponse(
+      success: json['success'] ?? false,
+      isTyping: json['data']?['is_typing'] ?? json['is_typing'] ?? false,
+      userName: json['data']?['user_name'] ?? json['user_name'],
     );
   }
 }

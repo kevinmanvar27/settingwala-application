@@ -7,6 +7,7 @@ import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_drawer.dart';
 import '../Service/event_service.dart';
 import '../Service/user_service.dart';
+import '../providers/chat_icon_provider.dart';
 import '../model/getusersmodel.dart' as users_model;
 import '../routes/app_routes.dart';
 
@@ -30,6 +31,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _isLoadingPeople = true;
   String? _eventsError;
   String? _peopleError;
+  
+  // Removed _showChatIcon - now handled by ChatIconProvider globally
 
   @override
   void initState() {
@@ -52,7 +55,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // Load API data
     _loadUpcomingEvents();
     _loadPeopleNearYou();
+    // Removed _checkChatIconVisibility() - now handled by ChatIconProvider
   }
+
+  // Removed _checkChatIconVisibility() method - now handled by ChatIconProvider
 
   // Fetch upcoming events from API
   Future<void> _loadUpcomingEvents() async {
@@ -175,12 +181,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final personNameSize = isSmallScreen ? 10.0 : (isTablet ? 14.0 : 12.0);
     final peopleListHeight = isSmallScreen ? 85.0 : (isTablet ? 115.0 : 100.0);
     
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: colors.background,
-      appBar: CustomAppBar(
-        scaffoldKey: _scaffoldKey,
-      ),
+    // Get chat notifier for ListenableBuilder
+    final chatNotifier = ChatIconProvider.maybeOf(context);
+    
+    return ListenableBuilder(
+      listenable: chatNotifier ?? ChangeNotifier(),
+      builder: (context, child) {
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: colors.background,
+          appBar: CustomAppBar(
+            scaffoldKey: _scaffoldKey,
+            // showChatIcon not passed - uses ChatIconProvider automatically
+          ),
       endDrawer: CustomDrawer(),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(bodyPadding),
@@ -502,6 +515,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ],
         ),
       ),
+    );
+      },
     );
   }
 }

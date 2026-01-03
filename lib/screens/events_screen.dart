@@ -3,7 +3,7 @@ import '../widgets/base_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme.dart';
 import '../Service/event_service.dart';
-import 'event_details_screen.dart';
+import '../routes/app_routes.dart';
 
 class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
@@ -563,12 +563,7 @@ class EventCard extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EventDetailsScreen(event: event),
-                        ),
-                      );
+                      AppRoutes.toEventDetails(context, event);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,

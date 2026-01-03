@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../screens/notifications_list_screen.dart';
 import '../theme/app_colors.dart';
-import '../screens/chat_list_screen.dart';
+import '../providers/chat_icon_provider.dart';
+import '../routes/app_routes.dart';
 import 'themed_logo.dart';
 
 
@@ -11,6 +11,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
   final List<Widget>? actions;
+  final bool? showChatIcon; // Nullable - when null, uses provider
 
   const CustomAppBar({
     super.key,
@@ -18,6 +19,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.title = '',
     this.showBackButton = false,
     this.actions,
+    this.showChatIcon,
   });
 
   String? get _userPhotoUrl {
@@ -42,6 +44,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final avatarIconSize = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
     final endPadding = isDesktop ? 16.0 : isTablet ? 12.0 : isSmallScreen ? 4.0 : 8.0;
 
+    // Get chat icon notifier and listen to changes
+    final chatNotifier = ChatIconProvider.maybeOf(context);
+    
+    // Determine chat icon visibility: use explicit value if provided, otherwise use provider
+    final shouldShowChatIcon = showChatIcon ?? (chatNotifier?.showChatIcon ?? false);
+
     return AppBar(
       automaticallyImplyLeading: showBackButton,
       leading: showBackButton
@@ -60,30 +68,34 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           color: primaryColor.withOpacity(0.2),
         ),
       ),
-      title: Container(
-        padding: EdgeInsets.all(isSmallScreen ? 2 : 4),
-        child: ThemedLogo(
-          height: logoSize,
-          width: logoSize,
+      title: GestureDetector(
+        onTap: () {
+          // Navigate to MainNavigationScreen when logo is tapped
+          AppRoutes.navigateAndClearStack(context, AppRoutes.mainNavigation);
+        },
+        child: Container(
+          padding: EdgeInsets.all(isSmallScreen ? 2 : 4),
+          child: ThemedLogo(
+            height: logoSize,
+            width: logoSize,
+          ),
         ),
       ),
       actions: actions ?? [
-        IconButton(
-          icon: Icon(Icons.chat, color: primaryColor, size: iconSize),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ChatListScreen()),
-            );
-          },
-        ),
+        // Only show chat icon if shouldShowChatIcon is true
+        if (shouldShowChatIcon)
+          IconButton(
+            icon: Icon(Icons.chat, color: primaryColor, size: iconSize),
+            onPressed: () {
+              // Use named route for chat list
+              AppRoutes.navigateTo(context, AppRoutes.chatList);
+            },
+          ),
         IconButton(
           icon: Icon(Icons.notifications, color: primaryColor, size: iconSize),
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const NotificationsListScreen()),
-            );
+            // Use named route for notifications
+            AppRoutes.navigateTo(context, AppRoutes.notificationsList);
           },
         ),
         IconButton(

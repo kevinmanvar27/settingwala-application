@@ -6,6 +6,8 @@ import '../Service/notification_service.dart';
 import '../Service/provider_booking_service.dart';
 import '../Service/booking_service.dart';
 import '../model/GetnotificatonsModel.dart';
+import '../model/booking_payment_model.dart';
+import '../providers/chat_icon_provider.dart';
 
 class NotificationsListScreen extends StatefulWidget {
   const NotificationsListScreen({super.key});
@@ -828,7 +830,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     );
 
     try {
-      final response = await BookingService.updateBooking(
+      // Use new updateBookingWithPayment method that handles payment differences
+      final response = await BookingService.updateBookingWithPayment(
         bookingId,
         bookingDate: bookingDate,
         startTime: startTime,
@@ -838,10 +841,51 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
       if (mounted) Navigator.pop(context);
 
+      // Check if payment is required (duration increased)
+      if (response.requiresPayment && response.paymentRequirement != null) {
+        // Show payment dialog
+        _showPaymentRequirementDialog(
+          bookingId: bookingId,
+          paymentRequirement: response.paymentRequirement!,
+          bookingDate: bookingDate,
+          startTime: startTime,
+          endTime: endTime,
+          notes: notes,
+        );
+        return;
+      }
+
+      // Check if refund was processed (duration decreased)
+      if (response.success && response.data?.refundInfo != null) {
+        final refundInfo = response.data!.refundInfo!;
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Booking updated! ₹${refundInfo.amount.toStringAsFixed(2)} refunded to your wallet',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        if (mounted) _loadNotifications();
+        return;
+      }
+
+      // Normal success/failure handling
       String messageToShow;
-      if (response?.message != null && response!.message.isNotEmpty) {
+      if (response.message.isNotEmpty) {
         messageToShow = response.message;
-      } else if (response?.success == true) {
+      } else if (response.success) {
         messageToShow = 'Booking updated successfully';
       } else {
         messageToShow = 'Failed to update booking';
@@ -850,14 +894,14 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(messageToShow),
-          backgroundColor: response?.success == true ? AppColors.success : AppColors.error,
+          backgroundColor: response.success ? AppColors.success : AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           duration: const Duration(seconds: 3),
         ),
       );
 
-      if (response?.success == true && mounted) {
+      if (response.success && mounted) {
         _loadNotifications();
       }
     } catch (e) {
@@ -873,6 +917,267 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         ),
       );
     }
+  }
+
+  /// Show payment requirement dialog when booking update requires extra payment
+  void _showPaymentRequirementDialog({
+    required int bookingId,
+    required PaymentRequirement paymentRequirement,
+    DateTime? bookingDate,
+    String? startTime,
+    String? endTime,
+    String? notes,
+  }) {
+    final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.payment, color: primaryColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Additional Payment Required',
+                style: TextStyle(color: colors.textPrimary, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Extending booking time requires additional payment.',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  _buildPaymentRow('Extra Amount Due', '₹${paymentRequirement.totalDue.toStringAsFixed(2)}', colors, isBold: true),
+                  const Divider(height: 16),
+                  _buildPaymentRow('Your Wallet Balance', '₹${paymentRequirement.walletBalance.toStringAsFixed(2)}', colors),
+                  if (paymentRequirement.walletAmountToUse > 0) ...[
+                    const SizedBox(height: 8),
+                    _buildPaymentRow('From Wallet', '-₹${paymentRequirement.walletAmountToUse.toStringAsFixed(2)}', colors, color: AppColors.success),
+                  ],
+                  if (paymentRequirement.cashfreeAmountDue > 0) ...[
+                    const SizedBox(height: 8),
+                    _buildPaymentRow('Pay via Cashfree', '₹${paymentRequirement.cashfreeAmountDue.toStringAsFixed(2)}', colors, color: AppColors.warning),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (paymentRequirement.canPayFromWallet)
+              Text(
+                '✓ Full amount can be paid from wallet',
+                style: TextStyle(color: AppColors.success, fontSize: 12),
+              )
+            else
+              Text(
+                '⚠ Insufficient wallet balance. Remaining amount will be charged via Cashfree.',
+                style: TextStyle(color: AppColors.warning, fontSize: 12),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _processUpdatePayment(
+                bookingId: bookingId,
+                paymentRequirement: paymentRequirement,
+                bookingDate: bookingDate,
+                startTime: startTime,
+                endTime: endTime,
+                notes: notes,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: isDark ? AppColors.black : AppColors.white,
+            ),
+            child: Text(paymentRequirement.canPayFromWallet ? 'Pay from Wallet' : 'Proceed to Pay'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentRow(String label, String value, dynamic colors, {bool isBold = false, Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color ?? colors.textPrimary,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Process payment for booking update
+  Future<void> _processUpdatePayment({
+    required int bookingId,
+    required PaymentRequirement paymentRequirement,
+    DateTime? bookingDate,
+    String? startTime,
+    String? endTime,
+    String? notes,
+  }) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      if (paymentRequirement.canPayFromWallet) {
+        // Pay fully from wallet
+        final response = await BookingService.processDifferencePayment(
+          bookingId: bookingId,
+          amount: paymentRequirement.totalDue,
+          paymentMethod: 'wallet',
+        );
+
+        if (mounted) Navigator.pop(context);
+
+        if (response.success) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Booking updated! ₹${paymentRequirement.totalDue.toStringAsFixed(2)} deducted from wallet'),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          if (mounted) _loadNotifications();
+        } else {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(response.message.isNotEmpty ? response.message : 'Payment failed'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        // Need to use Cashfree for remaining amount
+        final paymentResponse = await BookingService.initiateUpdatePayment(
+          bookingId,
+          paymentRequirement.cashfreeAmountDue,
+          preferredPaymentMethod: 'cashfree',
+        );
+
+        if (mounted) Navigator.pop(context);
+
+        if (paymentResponse != null && paymentResponse.success) {
+          // Navigate to Cashfree payment or handle payment session
+          _handleCashfreePayment(
+            bookingId: bookingId,
+            paymentResponse: paymentResponse,
+            walletAmountUsed: paymentRequirement.walletAmountToUse,
+          );
+        } else {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(paymentResponse?.message ?? 'Failed to initiate payment'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  /// Handle Cashfree payment flow for booking update
+  void _handleCashfreePayment({
+    required int bookingId,
+    required BookingPaymentModel paymentResponse,
+    required double walletAmountUsed,
+  }) {
+    // TODO: Integrate with Cashfree SDK
+    // This should open Cashfree payment gateway
+    // After successful payment, call BookingService.processDifferencePayment with Cashfree details
+    
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    scaffoldMessenger.showSnackBar(
+      SnackBar(
+        content: const Text('Redirecting to payment gateway...'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    // For now, show a placeholder message
+    // In production, integrate with Cashfree SDK here
+    // Example:
+    // CashfreePayment.startPayment(
+    //   orderId: paymentResponse.orderId,
+    //   sessionId: paymentResponse.sessionId,
+    //   onSuccess: (result) => _onCashfreePaymentSuccess(bookingId, result, walletAmountUsed),
+    //   onFailure: (error) => _onCashfreePaymentFailure(error),
+    // );
   }
 
   void _onDeleteBooking(NotificationItem notification) {
@@ -976,31 +1281,60 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     );
 
     try {
-      final response = await BookingService.cancelBooking(bookingId, reason: 'Cancelled by user');
+      // Use new cancelBookingWithRefund method that returns refund info
+      final response = await BookingService.cancelBookingWithRefund(bookingId, reason: 'Cancelled by user');
 
       if (mounted) Navigator.pop(context);
 
-      String messageToShow;
-      if (response?.message != null && response!.message.isNotEmpty) {
-        messageToShow = response.message;
-      } else if (response?.success == true) {
-        messageToShow = 'Booking cancelled successfully';
+      if (response.success) {
+        // Check if refund was processed
+        final refundInfo = response.data?.refundInfo;
+        
+        if (refundInfo != null && refundInfo.amount > 0) {
+          // Show refund success message
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Booking cancelled! ₹${refundInfo.amount.toStringAsFixed(2)} refunded to your wallet',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          // No refund (maybe booking wasn't paid yet)
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(response.message.isNotEmpty ? response.message : 'Booking cancelled successfully'),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+
+        if (mounted) _loadNotifications();
       } else {
-        messageToShow = 'Failed to cancel booking';
-      }
-
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text(messageToShow),
-          backgroundColor: response?.success == true ? AppColors.success : AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-
-      if (response?.success == true && mounted) {
-        _loadNotifications();
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(response.message.isNotEmpty ? response.message : 'Failed to cancel booking'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
@@ -1133,6 +1467,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
         if (response.success) {
           _loadNotifications();
+          // Optimistically show chat icon immediately
+          ChatIconProvider.maybeOf(context)?.setChatIconVisibility(true);
+          // Then refresh in background to get accurate chat count
+          ChatIconProvider.maybeOf(context)?.refresh();
         }
       }
     } catch (e) {

@@ -1351,12 +1351,33 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
           final endParts = slot.end.split(':');
 
           if (startParts.length >= 2 && endParts.length >= 2) {
-            int hour = int.tryParse(startParts[0]) ?? 9;
-            int minute = int.tryParse(startParts[1]) ?? 0;
+            int startHour = int.tryParse(startParts[0]) ?? 9;
+            int startMinute = int.tryParse(startParts[1]) ?? 0;
             final endHour = int.tryParse(endParts[0]) ?? 17;
             final endMinute = int.tryParse(endParts[1]) ?? 0;
-            final endTotalMinutes = endHour * 60 + endMinute;
+            
+            // Round start time UP to next 30-minute interval (9:00, 9:30, 10:00, etc.)
+            if (startMinute > 0 && startMinute < 30) {
+              startMinute = 30;
+            } else if (startMinute > 30) {
+              startMinute = 0;
+              startHour += 1;
+            }
+            
+            // Round end time DOWN to previous 30-minute interval
+            int adjustedEndMinute = endMinute;
+            int adjustedEndHour = endHour;
+            if (endMinute > 0 && endMinute < 30) {
+              adjustedEndMinute = 0;
+            } else if (endMinute > 30) {
+              adjustedEndMinute = 30;
+            }
+            
+            final endTotalMinutes = adjustedEndHour * 60 + adjustedEndMinute;
+            int hour = startHour;
+            int minute = startMinute;
 
+            // Generate slots at exact 30-minute intervals (9:00, 9:30, 10:00, 10:30, etc.)
             while (hour * 60 + minute < endTotalMinutes) {
               final timeStr = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
               if (!slots.contains(timeStr)) {
@@ -1371,7 +1392,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
             }
 
             if (forEndTime) {
-              final endTimeStr = '${endHour.toString().padLeft(2, '0')}:${endMinute.toString().padLeft(2, '0')}';
+              final endTimeStr = '${adjustedEndHour.toString().padLeft(2, '0')}:${adjustedEndMinute.toString().padLeft(2, '0')}';
               if (!slots.contains(endTimeStr)) {
                 slots.add(endTimeStr);
               }

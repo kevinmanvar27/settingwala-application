@@ -41,7 +41,7 @@ class User {
   String profilePictureUrl;
   String gender;
   DateTime dateOfBirth;
-  double age;
+  int age;
   String interests;
   String expectation;
   bool isProfileComplete;
@@ -140,7 +140,7 @@ class User {
       dateOfBirth: json['date_of_birth'] != null
           ? DateTime.parse(json['date_of_birth'])
           : DateTime.now(),
-      age: (json['age'] ?? 0).toDouble(),
+      age: (json['age'] ?? 0) is int ? json['age'] ?? 0 : (json['age'] ?? 0).toInt(),
       interests: json['interests'] ?? '',
       expectation: json['expectation'] ?? '',
       isProfileComplete: _parseBool(json['is_profile_complete']),

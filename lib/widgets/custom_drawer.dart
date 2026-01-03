@@ -1,22 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:settingwala/firstscreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../screens/profile.dart';
-import '../screens/my_bookings_screen.dart';
-import '../screens/wallet_screen.dart';
-import '../screens/rejections_screen.dart';
-import '../screens/seven/About.dart';
-import '../screens/seven/Journey.dart';
-import '../screens/seven/Contact.dart';
-import '../screens/seven/Privacypolicy.dart';
-import '../screens/seven/Safety.dart';
-import '../screens/seven/Termsofservice.dart';
-import '../screens/seven/refand.dart';
 import '../theme/app_colors.dart';
 import '../widgets/theme_toggle.dart';
 import '../Service/profile_service.dart';
+import '../routes/app_routes.dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -197,12 +186,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () async {
                 Navigator.pop(context);
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
-                  ),
-                );
+                await AppRoutes.navigateTo(context, AppRoutes.profile);
                 _loadProfile();
               },
             ),
@@ -218,12 +202,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MyBookingsScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.myBookings);
               },
             ),
             
@@ -238,12 +217,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const WalletScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.wallet);
               },
             ),
 
@@ -258,12 +232,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RejectionsScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.rejections);
               },
             ),
             
@@ -278,12 +247,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AboutScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.about);
               },
             ),
             
@@ -298,12 +262,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const JourneyScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.journey);
               },
             ),
             
@@ -318,12 +277,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ContactScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.contact);
               },
             ),
             
@@ -338,12 +292,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PrivacyPolicyScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.privacyPolicy);
               },
             ),
             
@@ -358,12 +307,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TermsofServiceScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.termsOfService);
               },
             ),
             
@@ -378,12 +322,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SafetyScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.safety);
               },
             ),
             
@@ -398,12 +337,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               titleFontSize: itemTitleFontSize,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RefundScreen(),
-                  ),
-                );
+                AppRoutes.navigateTo(context, AppRoutes.refundPolicy);
               },
             ),
             
@@ -615,11 +549,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   await prefs.remove('is_new_user');
                   
                   if (context.mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => Firstscreen()),
-                      (route) => false,
-                    );
+                    AppRoutes.toFirstScreen(context);
                   }
                 } catch (e) {
                   if (context.mounted) {

@@ -6,9 +6,7 @@ import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../Service/profile_service.dart';
 import '../model/getprofilemodel.dart';
-import 'book_meeting_screen.dart';
-import 'user_gallery_screen.dart';
-import 'my_bookings_screen.dart';
+import '../routes/app_routes.dart';
 
 class PersonProfileScreen extends StatefulWidget {
   final Map<String, dynamic> person;
@@ -83,12 +81,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
   }
 
   void _onBookTimeTap(Map<String, dynamic> person) async {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => BookMeetingScreen(person: person),
-      ),
-    );
+    AppRoutes.toBookMeeting(context, person);
   }
 
   Widget _buildProfileAvatar(Map<String, dynamic> person, double avatarRadius, double avatarIconSize) {
@@ -311,7 +304,9 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
                 Row(
                   children: [
                     Text(
-                      '${person['name']}, ${person['age']}',
+                      person['age'] != null && person['age'] != 0 
+                          ? '${person['name']}, ${person['age']}'
+                          : '${person['name']}',
                       style: TextStyle(
                         fontSize: nameFontSize,
                         fontWeight: FontWeight.bold,
@@ -344,7 +339,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
                         vertical: isTablet ? 6 : 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.amber.shade50,
+                        color: Colors.amber.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
                       ),
                       child: Row(
@@ -400,7 +395,8 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
 
                 SizedBox(height: isTablet ? 20 : 16),
 
-                _buildDetailRow(Icons.cake, 'Age', '${person['age']} years', colors, infoFontSize, iconSize),
+                if (person['age'] != null && person['age'] != 0)
+                  _buildDetailRow(Icons.cake, 'Age', '${person['age']}', colors, infoFontSize, iconSize),
                 SizedBox(height: isTablet ? 8 : 6),
 
                 if (person['serviceLocation'] != null && person['serviceLocation'].toString().isNotEmpty) ...[
@@ -483,10 +479,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const MyBookingsScreen()),
-              );
+              AppRoutes.navigateTo(context, AppRoutes.myBookings);
             },
             icon: Icon(Icons.calendar_month, size: buttonIconSize),
             label: Text(
@@ -633,12 +626,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
             ),
             TextButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => UserGalleryScreen(person: person),
-                  ),
-                );
+                AppRoutes.toUserGallery(context, person);
               },
               child: Text(
                 'View All',
@@ -670,12 +658,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
               
               return GestureDetector(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => UserGalleryScreen(person: person),
-                    ),
-                  );
+                  AppRoutes.toUserGallery(context, person);
                 },
                 child: Container(
                   width: galleryItemWidth,
@@ -832,7 +815,7 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
       'id': user.id,
       'name': user.name ?? '',
       'email': user.email,
-      'age': user.age?.toString() != null ? int.tryParse(user.age.toString()) ?? 0 : 0,
+      'age': user.age ?? 0,
       'location': buildLocation(),
       'bio': getBio(),
       'gender': user.gender ?? 'Female',

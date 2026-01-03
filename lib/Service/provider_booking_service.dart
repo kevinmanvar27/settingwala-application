@@ -525,7 +525,7 @@ class ProviderBookingClient {
       name: json['name'],
       avatar: json['avatar'],
       gender: json['gender'],
-      age: json['age'],
+      age: json['age'] != null ? (json['age'] is int ? json['age'] : (json['age'] as num).toInt()) : null,
       rating: _safeParseDouble(json['rating']),
       totalBookings: json['total_bookings'],
       isBlocked: _parseBool(json['is_blocked']),

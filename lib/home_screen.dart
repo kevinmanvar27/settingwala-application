@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:settingwala/screens/main_navigation_screen.dart';
-
+import 'providers/chat_icon_provider.dart';
 import 'google.dart';
 
 
@@ -113,6 +113,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
            OutlinedButton(onPressed: (){
+             // Refresh chat icon visibility
+             ChatIconProvider.maybeOf(context)?.refresh();
              Navigator.of(context).pushReplacement(
                MaterialPageRoute(builder: (context) => MainNavigationScreen()),
              );

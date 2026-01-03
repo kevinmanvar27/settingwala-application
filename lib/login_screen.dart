@@ -6,6 +6,7 @@ import 'google.dart';
 import 'theme/app_colors.dart';
 import 'utils/responsive.dart';
 import 'widgets/themed_logo.dart';
+import 'providers/chat_icon_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -66,6 +67,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       final result = await _authService.signInWithGoogle();
 
       if (result != null && mounted) {
+        // Refresh chat icon visibility after successful login
+        ChatIconProvider.maybeOf(context)?.refresh();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => MainNavigationScreen()),
         );
