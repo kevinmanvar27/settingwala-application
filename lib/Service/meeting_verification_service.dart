@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 double? _safeParseDouble(dynamic value) {
   if (value == null) return null;
@@ -24,6 +27,7 @@ class MeetingVerificationService {
         double? latitude,
         double? longitude,
       }) async {
+    final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/start-photo';
     try {
       final token = await _getToken();
 
@@ -34,12 +38,28 @@ class MeetingVerificationService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/start-photo';
+      // Debug: Check file before upload
+      final fileExists = await photo.exists();
+      final fileSize = fileExists ? await photo.length() : 0;
+      print('📸 Photo Debug:');
+      print('   Path: ${photo.path}');
+      print('   Exists: $fileExists');
+      print('   Size: $fileSize bytes');
+      
+      if (!fileExists || fileSize == 0) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 0, error: 'Photo file is empty or does not exist');
+        return MeetingVerificationResponse(
+          success: false,
+          message: 'Photo file is empty or not found. Please try again.',
+        );
+      }
 
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {
+        'photo': 'file (${fileSize} bytes)',
+        'photo_path': photo.path,
+        'latitude': latitude,
+        'longitude': longitude,
+      });
 
       final request = http.MultipartRequest('POST', Uri.parse(url));
       request.headers.addAll({
@@ -47,7 +67,23 @@ class MeetingVerificationService {
         'Authorization': 'Bearer $token',
       });
 
-      request.files.add(await http.MultipartFile.fromPath('photo', photo.path));
+      // Read file bytes and create multipart file
+      final fileBytes = await photo.readAsBytes();
+      // Use path.basename() to correctly extract filename on all platforms (Windows/Android/iOS)
+      final fileName = path.basename(photo.path);
+      final extension = path.extension(photo.path).toLowerCase().replaceFirst('.', '');
+      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      print('   File name: $fileName');
+      print('   Extension: $extension');
+      print('   MIME type: $mimeType');
+      print('   Bytes read: ${fileBytes.length}');
+      
+      request.files.add(http.MultipartFile.fromBytes(
+        'photo',
+        fileBytes,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      ));
 
       if (latitude != null) {
         request.fields['latitude'] = latitude.toString();
@@ -59,38 +95,38 @@ class MeetingVerificationService {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return MeetingVerificationResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return MeetingVerificationResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot upload start photo');
         return MeetingVerificationResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot upload start photo at this time.',
         );
       } else if (response.statusCode == 422) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 422, error: responseData['message'] ?? 'Invalid photo format');
         return MeetingVerificationResponse(
           success: false,
           message: responseData['message'] ?? 'Invalid photo format.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to upload start photo');
         return MeetingVerificationResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to upload start photo.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return MeetingVerificationResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -104,6 +140,7 @@ class MeetingVerificationService {
         double? latitude,
         double? longitude,
       }) async {
+    final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/end-photo';
     try {
       final token = await _getToken();
 
@@ -114,12 +151,28 @@ class MeetingVerificationService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/end-photo';
+      // Debug: Check file before upload
+      final fileExists = await photo.exists();
+      final fileSize = fileExists ? await photo.length() : 0;
+      print('📸 Photo Debug:');
+      print('   Path: ${photo.path}');
+      print('   Exists: $fileExists');
+      print('   Size: $fileSize bytes');
+      
+      if (!fileExists || fileSize == 0) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 0, error: 'Photo file is empty or does not exist');
+        return MeetingVerificationResponse(
+          success: false,
+          message: 'Photo file is empty or not found. Please try again.',
+        );
+      }
 
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {
+        'photo': 'file (${fileSize} bytes)',
+        'photo_path': photo.path,
+        'latitude': latitude,
+        'longitude': longitude,
+      });
 
       final request = http.MultipartRequest('POST', Uri.parse(url));
       request.headers.addAll({
@@ -127,7 +180,23 @@ class MeetingVerificationService {
         'Authorization': 'Bearer $token',
       });
 
-      request.files.add(await http.MultipartFile.fromPath('photo', photo.path));
+      // Read file bytes and create multipart file
+      final fileBytes = await photo.readAsBytes();
+      // Use path.basename() to correctly extract filename on all platforms (Windows/Android/iOS)
+      final fileName = path.basename(photo.path);
+      final extension = path.extension(photo.path).toLowerCase().replaceFirst('.', '');
+      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      print('   File name: $fileName');
+      print('   Extension: $extension');
+      print('   MIME type: $mimeType');
+      print('   Bytes read: ${fileBytes.length}');
+      
+      request.files.add(http.MultipartFile.fromBytes(
+        'photo',
+        fileBytes,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      ));
 
       if (latitude != null) {
         request.fields['latitude'] = latitude.toString();
@@ -139,38 +208,38 @@ class MeetingVerificationService {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return MeetingVerificationResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return MeetingVerificationResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot upload end photo');
         return MeetingVerificationResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot upload end photo at this time.',
         );
       } else if (response.statusCode == 422) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 422, error: responseData['message'] ?? 'Invalid photo format');
         return MeetingVerificationResponse(
           success: false,
           message: responseData['message'] ?? 'Invalid photo format.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to upload end photo');
         return MeetingVerificationResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to upload end photo.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return MeetingVerificationResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -179,6 +248,7 @@ class MeetingVerificationService {
   }
 
   static Future<VerificationStatusResponse> getVerificationStatus(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/status';
     try {
       final token = await _getToken();
 
@@ -189,11 +259,7 @@ class MeetingVerificationService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/status';
-
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -204,32 +270,31 @@ class MeetingVerificationService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return VerificationStatusResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return VerificationStatusResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Booking not found');
         return VerificationStatusResponse(
           success: false,
           message: 'Booking not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get verification status');
         return VerificationStatusResponse(
           success: false,
           message: 'Failed to get verification status.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return VerificationStatusResponse(
         success: false,
         message: 'Network error. Please check your connection.',

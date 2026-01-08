@@ -10,6 +10,7 @@ import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
 import 'package:flutter_cashfree_pg_sdk/utils/cfexceptions.dart';
 import 'package:intl/intl.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/app_colors.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
@@ -48,9 +49,18 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
   List<String> _availableStartTimes = [];
   List<String> _availableEndTimes = [];
 
+  // Notes text controller
+  final TextEditingController _notesController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchAvailability() async {
@@ -252,7 +262,7 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
         startTime: _startTime!,
         endTime: _endTime!,
         meetingLocation: null,
-        notes: null,
+        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       );
 
       final response = await BookingService.createBooking(booking);
@@ -795,6 +805,55 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
 
           SizedBox(height: Responsive.hp(3)),
 
+          // Notes text field
+          if (_startTime != null && _endTime != null) ...[
+            Text(
+              'Notes (Optional)',
+              style: TextStyle(
+                fontSize: Responsive.fontSize(14),
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            SizedBox(height: Responsive.hp(1)),
+            TextFormField(
+              controller: _notesController,
+              maxLines: 3,
+              maxLength: 500,
+              style: TextStyle(
+                fontSize: Responsive.fontSize(14),
+                color: colors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Add any notes or special requests for the meeting...',
+                hintStyle: TextStyle(
+                  fontSize: Responsive.fontSize(13),
+                  color: colors.textTertiary,
+                ),
+                filled: true,
+                fillColor: colors.card,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: primaryColor, width: 1.5),
+                ),
+                contentPadding: EdgeInsets.all(Responsive.wp(3)),
+                counterStyle: TextStyle(
+                  fontSize: Responsive.fontSize(11),
+                  color: colors.textTertiary,
+                ),
+              ),
+            ),
+            SizedBox(height: Responsive.hp(2)),
+          ],
+
           if (_startTime != null && _endTime != null) ...[
             Container(
               padding: EdgeInsets.all(Responsive.wp(4)),
@@ -817,11 +876,23 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
                   _buildSummaryRow('Duration', '${_calculateDuration().toStringAsFixed(1)} hours', colors),
                   _buildSummaryRow('Rate', '₹$hourlyRate/hour', colors),
                   Divider(color: colors.border),
+                  _buildSummaryRow('Base Amount', '₹${_calculateAmount().toStringAsFixed(0)}', colors),
+                  _buildSummaryRow('Platform Fee', '+ Applicable', colors),
+                  Divider(color: colors.border),
                   _buildSummaryRow(
                     'Total Amount',
-                    '₹${_calculateAmount().toStringAsFixed(0)}',
+                    '₹${_calculateAmount().toStringAsFixed(0)} + Fee',
                     colors,
                     isBold: true,
+                  ),
+                  SizedBox(height: Responsive.hp(1)),
+                  Text(
+                    'Platform fee will be calculated and shown before payment',
+                    style: TextStyle(
+                      fontSize: Responsive.fontSize(11),
+                      color: colors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
               ),
@@ -1237,26 +1308,18 @@ class _BookMeetingScreenState extends State<BookMeetingScreen> {
         color: colors.card,
       ),
       child: ClipOval(
-        child: Image.network(
-          cleanImageUrl,
+        child: CachedImage(
+          imageUrl: cleanImageUrl,
           width: 60,
           height: 60,
           fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-                color: isFemale ? Colors.pink.shade400 : Colors.blue.shade400,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Center(child: defaultIcon);
-          },
+          placeholder: Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: isFemale ? Colors.pink.shade400 : Colors.blue.shade400,
+            ),
+          ),
+          errorWidget: Center(child: defaultIcon),
         ),
       ),
     );

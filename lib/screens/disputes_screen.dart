@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
 import '../Service/dispute_service.dart';
@@ -648,10 +649,10 @@ class _DisputesScreenState extends State<DisputesScreen> with SingleTickerProvid
                                 child: evidence.fileUrl != null
                                     ? ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          evidence.fileUrl!,
+                                        child: CachedImage(
+                                          imageUrl: evidence.fileUrl!,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Icon(
+                                          errorWidget: Icon(
                                             Icons.broken_image,
                                             color: colors.textSecondary,
                                           ),
@@ -1055,250 +1056,16 @@ class _DisputesScreenState extends State<DisputesScreen> with SingleTickerProvid
     );
   }
 
+  // NOTE: Cancel dispute endpoint does NOT exist in API documentation (Section 17)
+  // API only supports: GET /disputes, POST /disputes/raise, GET /disputes/{bookingId}/details
   void _showCancelDisputeDialog(Dispute dispute, AppColorSet colors, Color primaryColor, bool isDark, bool isSmallScreen, bool isTablet, bool isDesktop) {
-    final reasonController = TextEditingController();
-    bool isCancelling = false;
-    
-    final dialogRadius = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
-    final titleFontSize = isDesktop ? 18.0 : isTablet ? 17.0 : isSmallScreen ? 14.0 : 16.0;
-    final contentFontSize = isDesktop ? 15.0 : isTablet ? 14.0 : isSmallScreen ? 12.0 : 13.0;
-    
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: colors.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(dialogRadius)),
-          title: Row(
-            children: [
-              Icon(Icons.cancel, color: AppColors.error, size: isSmallScreen ? 20 : 24),
-              SizedBox(width: isSmallScreen ? 8 : 10),
-              Text(
-                'Cancel Dispute',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: titleFontSize,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Are you sure you want to cancel dispute #${dispute.id}?',
-                style: TextStyle(color: colors.textSecondary, fontSize: contentFontSize),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: reasonController,
-                maxLines: 2,
-                style: TextStyle(color: colors.textPrimary, fontSize: contentFontSize),
-                decoration: InputDecoration(
-                  labelText: 'Reason (Optional)',
-                  labelStyle: TextStyle(color: colors.textSecondary),
-                  hintText: 'Why are you cancelling?',
-                  hintStyle: TextStyle(color: colors.textSecondary.withValues(alpha: 0.5)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('No, Keep It', style: TextStyle(color: colors.textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: isCancelling
-                  ? null
-                  : () async {
-                      setDialogState(() => isCancelling = true);
-                      
-                      final response = await DisputeService.cancelDispute(
-                        dispute.id,
-                        reason: reasonController.text.isNotEmpty ? reasonController.text : null,
-                      );
-                      
-                      if (response.success) {
-                        Navigator.pop(context);
-                        _showSnackBar('Dispute cancelled', AppColors.success);
-                        _loadDisputes();
-                      } else {
-                        setDialogState(() => isCancelling = false);
-                        _showSnackBar(response.message, AppColors.error);
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: AppColors.white,
-              ),
-              child: isCancelling
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white),
-                    )
-                  : const Text('Yes, Cancel'),
-            ),
-          ],
-        ),
-      ),
-    );
+    _showSnackBar('Cancel dispute feature is not available. Please contact support.', AppColors.warning);
   }
 
+  // NOTE: Add message to dispute endpoint does NOT exist in API documentation (Section 17)
+  // API only supports: GET /disputes, POST /disputes/raise, GET /disputes/{bookingId}/details
   void _showAddMessageDialog(Dispute dispute, AppColorSet colors, Color primaryColor, bool isDark, bool isSmallScreen, bool isTablet, bool isDesktop) {
-    final messageController = TextEditingController();
-    List<File> attachments = [];
-    bool isSending = false;
-    
-    final dialogRadius = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
-    final titleFontSize = isDesktop ? 18.0 : isTablet ? 17.0 : isSmallScreen ? 14.0 : 16.0;
-    final contentFontSize = isDesktop ? 15.0 : isTablet ? 14.0 : isSmallScreen ? 12.0 : 13.0;
-    
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: colors.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(dialogRadius)),
-          title: Row(
-            children: [
-              Icon(Icons.message, color: primaryColor, size: isSmallScreen ? 20 : 24),
-              SizedBox(width: isSmallScreen ? 8 : 10),
-              Text(
-                'Add Message',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: titleFontSize,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: messageController,
-                maxLines: 4,
-                style: TextStyle(color: colors.textPrimary, fontSize: contentFontSize),
-                decoration: InputDecoration(
-                  labelText: 'Message *',
-                  labelStyle: TextStyle(color: colors.textSecondary),
-                  hintText: 'Type your message...',
-                  hintStyle: TextStyle(color: colors.textSecondary.withValues(alpha: 0.5)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: () async {
-                      final picker = ImagePicker();
-                      final images = await picker.pickMultiImage();
-                      if (images.isNotEmpty) {
-                        setDialogState(() {
-                          attachments.addAll(images.map((img) => File(img.path)));
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.attach_file),
-                    label: Text('Add Attachments (${attachments.length})'),
-                    style: TextButton.styleFrom(foregroundColor: colors.textSecondary),
-                  ),
-                ],
-              ),
-              if (attachments.isNotEmpty)
-                SizedBox(
-                  height: 50,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: attachments.length,
-                    itemBuilder: (context, index) => Stack(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            image: DecorationImage(
-                              image: FileImage(attachments[index]),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: -6,
-                          right: 2,
-                          child: GestureDetector(
-                            onTap: () => setDialogState(() => attachments.removeAt(index)),
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                color: AppColors.error,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close, size: 12, color: AppColors.white),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: isSending
-                  ? null
-                  : () async {
-                      if (messageController.text.isEmpty) {
-                        _showSnackBar('Please enter a message', AppColors.error);
-                        return;
-                      }
-                      
-                      setDialogState(() => isSending = true);
-                      
-                      final response = await DisputeService.addMessage(
-                        disputeId: dispute.id,
-                        message: messageController.text,
-                        attachments: attachments.isNotEmpty ? attachments : null,
-                      );
-                      
-                      if (response.success) {
-                        Navigator.pop(context);
-                        _showSnackBar('Message sent!', AppColors.success);
-                        _loadDisputes();
-                      } else {
-                        setDialogState(() => isSending = false);
-                        _showSnackBar(response.message, AppColors.error);
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: isDark ? AppColors.black : AppColors.white,
-              ),
-              child: isSending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white),
-                    )
-                  : const Text('Send'),
-            ),
-          ],
-        ),
-      ),
-    );
+    _showSnackBar('Add message feature is not available. Please contact support.', AppColors.warning);
   }
 
   void _showSnackBar(String message, Color color) {

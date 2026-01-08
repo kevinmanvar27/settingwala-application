@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Service/couple_activity_service.dart';
+import '../Service/blocked_users_service.dart';
+// Note: blocked_users_model.dart is used internally by BlockedUsersService
 
 class CoupleActivityScreen extends StatefulWidget {
   const CoupleActivityScreen({super.key});
@@ -222,27 +224,40 @@ class _CoupleActivityScreenState extends State<CoupleActivityScreen>
     }
   }
 
+  // FIX: Using BlockedUsersService.getBlockedUsers() instead of removed CoupleActivityService.getBlockedUsers()
+  // API endpoint: GET /chat/blocked-users (Section 11.3)
+  // Note: This API doesn't support pagination, so loadMore is ignored
   Future<void> _loadBlockedUsers({bool loadMore = false}) async {
-    if (loadMore) {
-      if (_isLoadingMoreBlocked || _blockedCurrentPage >= _blockedLastPage) return;
-      setState(() => _isLoadingMoreBlocked = true);
-    }
+    // Skip if already loading or trying to load more (API doesn't support pagination)
+    if (_isLoadingMoreBlocked) return;
+    if (loadMore) return; // API doesn't support pagination
+    
+    setState(() => _isLoadingMoreBlocked = true);
 
     try {
-      final page = loadMore ? _blockedCurrentPage + 1 : 1;
-      final response = await CoupleActivityService.getBlockedUsers(page: page);
+      final response = await BlockedUsersService.getBlockedUsers();
 
       if (mounted) {
         setState(() {
           _isLoadingMoreBlocked = false;
-          if (response.success) {
-            if (loadMore) {
-              _blockedUsers.addAll(response.data);
-            } else {
-              _blockedUsers = response.data;
-            }
-            _blockedCurrentPage = response.pagination?.currentPage ?? 1;
-            _blockedLastPage = response.pagination?.lastPage ?? 1;
+          if (response != null && response.success) {
+            // Convert BlockedUsersModel.BlockedUser to CoupleActivityService.BlockedUser format
+            _blockedUsers = response.data.map((blockedUserModel) {
+              return BlockedUser(
+                id: blockedUserModel.id,
+                blockedUserId: blockedUserModel.blockedUserId,
+                blockedAt: blockedUserModel.blockedOn,
+                user: CoupleActivityUser(
+                  id: blockedUserModel.blockedUserId,
+                  name: blockedUserModel.name,
+                  email: blockedUserModel.email,
+                  profilePhoto: blockedUserModel.profilePicture,
+                ),
+              );
+            }).toList();
+            // No pagination from this API
+            _blockedCurrentPage = 1;
+            _blockedLastPage = 1;
           }
         });
       }

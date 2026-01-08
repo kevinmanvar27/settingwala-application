@@ -14,6 +14,7 @@ import '../model/getsubscriptionmodel.dart';
 import '../model/postpurchasemodel.dart';
 import '../utils/responsive.dart';
 import '../routes/app_routes.dart';
+import '../utils/auth_helper.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -25,8 +26,13 @@ class SubscriptionScreen extends StatefulWidget {
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   bool _isLoading = true;
   bool _isProcessing = false;
+  bool _isCancelling = false;
   int _selectedPlanId = -1;
   List<Plan> _subscriptionPlans = [];
+  bool _hasActiveSubscription = false;
+  String? _activeSubscriptionName;
+  String? _subscriptionEndDate;
+  bool _isValidating = true;
   
   final SubscriptionService _subscriptionService = SubscriptionService();
 
@@ -35,7 +41,43 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   void initState() {
     super.initState();
-    _step1_loadSubscriptionPlans();
+    _validateAndLoadData();
+  }
+
+  // Validate user first, then load data if valid
+  Future<void> _validateAndLoadData() async {
+    final isValid = await AuthHelper.validateUserOrRedirect(context);
+    
+    if (!mounted) return;
+    
+    if (isValid) {
+      setState(() {
+        _isValidating = false;
+      });
+      _step1_loadSubscriptionPlans();
+      _checkActiveSubscription();
+    }
+    // If not valid, AuthHelper already redirected to login
+  }
+
+  Future<void> _checkActiveSubscription() async {
+    try {
+      final statusResult = await _subscriptionService.getSubscriptionStatus();
+      if (!mounted) return;
+      
+      if (statusResult != null && statusResult.success && statusResult.data != null) {
+        final subscription = statusResult.data.subscription;
+        if (subscription != null && subscription.status == 'active') {
+          setState(() {
+            _hasActiveSubscription = true;
+            _activeSubscriptionName = subscription.planName;
+            _subscriptionEndDate = subscription.endDate;
+          });
+        }
+      }
+    } catch (e) {
+      // Silent fail - subscription status check is optional
+    }
   }
 
   Future<void> _step1_loadSubscriptionPlans() async {
@@ -43,7 +85,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     
     
     
-    
+
     try {
       final result = await _subscriptionService.getSubscriptionPlans();
 
@@ -330,6 +372,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final isTablet = screenWidth >= 600;
     final isDesktop = screenWidth >= 1024;
 
+    // Show loading while validating user
+    if (_isValidating) {
+      return BaseScreen(
+        title: 'Subscription Plans',
+        showBackButton: true,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+          ),
+        ),
+      );
+    }
+
     return BaseScreen(
       title: 'Subscription Plans',
       showBackButton: true,
@@ -388,10 +443,260 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       SizedBox(height: isTablet ? 40 : 32),
 
                       _buildSubscribeButton(colors, primaryColor, isDark),
+
+                      // Active Subscription Section
+                      if (_hasActiveSubscription) ...[
+                        SizedBox(height: isTablet ? 40 : 32),
+                        _buildActiveSubscriptionSection(colors, primaryColor, isDark, isSmallScreen, isTablet),
+                      ],
+
+                      // Subscription History Button
+                      SizedBox(height: isTablet ? 24 : 16),
+                      _buildHistoryButton(colors, primaryColor, isDark, isSmallScreen, isTablet),
                     ],
                   ),
                 ),
     );
+  }
+
+  Widget _buildActiveSubscriptionSection(
+    AppColorSet colors,
+    Color primaryColor,
+    bool isDark,
+    bool isSmallScreen,
+    bool isTablet,
+  ) {
+    return Container(
+      padding: EdgeInsets.all(isSmallScreen ? 12 : isTablet ? 20 : 16),
+      decoration: BoxDecoration(
+        color: primaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(isSmallScreen ? 20 : isTablet ? 35 : 30),
+        border: Border.all(color: primaryColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: AppColors.success,
+                size: isSmallScreen ? 20 : isTablet ? 28 : 24,
+              ),
+              SizedBox(width: isTablet ? 12 : 8),
+              Expanded(
+                child: Text(
+                  'Active Subscription',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 16 : isTablet ? 22 : 18,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: isTablet ? 16 : 12),
+          Text(
+            _activeSubscriptionName ?? 'Premium Plan',
+            style: TextStyle(
+              fontSize: isSmallScreen ? 14 : isTablet ? 18 : 16,
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (_subscriptionEndDate != null) ...[
+            SizedBox(height: isTablet ? 8 : 4),
+            Text(
+              'Expires: ${_formatDateString(_subscriptionEndDate!)}',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 12 : isTablet ? 16 : 14,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+          SizedBox(height: isTablet ? 20 : 16),
+          SizedBox(
+            width: double.infinity,
+            height: isSmallScreen ? 42 : isTablet ? 54 : 46,
+            child: OutlinedButton.icon(
+              onPressed: _isCancelling ? null : _showCancelSubscriptionDialog,
+              icon: _isCancelling
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.error,
+                      ),
+                    )
+                  : Icon(Icons.cancel_outlined, size: isSmallScreen ? 16 : 18),
+              label: Text(
+                _isCancelling ? 'Cancelling...' : 'Cancel Subscription',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 13 : isTablet ? 17 : 15,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: BorderSide(color: AppColors.error),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(isSmallScreen ? 21 : isTablet ? 27 : 23),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryButton(
+    AppColorSet colors,
+    Color primaryColor,
+    bool isDark,
+    bool isSmallScreen,
+    bool isTablet,
+  ) {
+    return SizedBox(
+      width: double.infinity,
+      height: isSmallScreen ? 46 : isTablet ? 60 : 50,
+      child: OutlinedButton.icon(
+        onPressed: () => AppRoutes.navigateTo(context, AppRoutes.subscriptionHistory),
+        icon: Icon(Icons.history, size: isSmallScreen ? 18 : isTablet ? 24 : 20),
+        label: Text(
+          'View Subscription History',
+          style: TextStyle(
+            fontSize: isSmallScreen ? 14 : isTablet ? 18 : 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryColor,
+          side: BorderSide(color: primaryColor.withOpacity(0.5)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(isSmallScreen ? 23 : isTablet ? 30 : 25),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _formatDateString(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      return _formatDate(date);
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  Future<void> _showCancelSubscriptionDialog() async {
+    final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              'Cancel Subscription',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to cancel your subscription?',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '• You will lose access to premium features\n'
+              '• Your subscription will remain active until the end of the billing period\n'
+              '• You can resubscribe anytime',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Keep Subscription',
+              style: TextStyle(color: primaryColor),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Cancel Subscription'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _cancelSubscription();
+    }
+  }
+
+  Future<void> _cancelSubscription() async {
+    setState(() => _isCancelling = true);
+
+    try {
+      final response = await _subscriptionService.cancelSubscription();
+
+      if (!mounted) return;
+
+      if (response.success) {
+        setState(() {
+          _hasActiveSubscription = false;
+          _activeSubscriptionName = null;
+          _subscriptionEndDate = null;
+        });
+        _showMessage('Subscription cancelled successfully', isSuccess: true);
+      } else {
+        _showError(response.message ?? 'An error occurred');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showError('Failed to cancel subscription. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCancelling = false);
+      }
+    }
   }
 
   Widget _buildLoadingWidget(AppColorSet colors) {

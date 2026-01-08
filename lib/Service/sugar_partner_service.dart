@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class SugarPartnerService {
   static Future<String?> _getToken() async {
@@ -17,7 +18,17 @@ class SugarPartnerService {
     return false;
   }
 
+  // Helper to safely parse double from dynamic value (handles String, int, double)
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
   static Future<SugarPartnerExchangesResponse> getExchanges({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/exchanges?page=$page';
     try {
       final token = await _getToken();
 
@@ -28,11 +39,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/exchanges?page=$page';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -43,27 +51,25 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return SugarPartnerExchangesResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerExchangesResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get exchanges');
         return SugarPartnerExchangesResponse(
           success: false,
           message: 'Failed to get exchanges.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerExchangesResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -72,6 +78,7 @@ class SugarPartnerService {
   }
 
   static Future<SugarPartnerExchangeDetailsResponse> getExchangeDetails(int exchangeId) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId';
     try {
       final token = await _getToken();
 
@@ -82,11 +89,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -97,32 +101,31 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return SugarPartnerExchangeDetailsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerExchangeDetailsResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Exchange not found');
         return SugarPartnerExchangeDetailsResponse(
           success: false,
           message: 'Exchange not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get exchange details');
         return SugarPartnerExchangeDetailsResponse(
           success: false,
           message: 'Failed to get exchange details.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerExchangeDetailsResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -131,6 +134,7 @@ class SugarPartnerService {
   }
 
   static Future<ViewProfilesResponse> viewProfiles(int exchangeId) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId/view-profiles';
     try {
       final token = await _getToken();
 
@@ -141,11 +145,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId/view-profiles';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -156,39 +157,39 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return ViewProfilesResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ViewProfilesResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 402) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 402, error: 'Payment required');
         return ViewProfilesResponse(
           success: false,
           message: responseData['message'] ?? 'Payment required to view profiles.',
           requiresPayment: true,
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Exchange not found');
         return ViewProfilesResponse(
           success: false,
           message: responseData['message'] ?? 'Exchange not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to view profiles');
         return ViewProfilesResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to view profiles.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return ViewProfilesResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -201,6 +202,7 @@ class SugarPartnerService {
         required String action,
         String? message,
       }) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId/respond';
     try {
       final token = await _getToken();
 
@@ -211,16 +213,15 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId/respond';
+      // FIX: API Section 15.4 expects 'response' not 'action'
+      // Valid values: "accept", "soft_reject", "hard_reject"
       final body = {
-        'action': action,
+        'response': action,
         if (message != null && message.isNotEmpty) 'message': message,
       };
 
-      
-      
-      
-      
+      // Log API call with body
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -232,43 +233,44 @@ class SugarPartnerService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return SugarPartnerActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot respond to this exchange');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot respond to this exchange.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Exchange not found');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'Exchange not found.',
         );
       } else if (response.statusCode == 422) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 422, error: 'Invalid action');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'Invalid action.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to respond to exchange');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to respond to exchange.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -277,6 +279,7 @@ class SugarPartnerService {
   }
 
   static Future<ExchangePaymentResponse> getExchangePayment(int exchangeId) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId/payment';
     try {
       final token = await _getToken();
 
@@ -287,11 +290,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId/payment';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -302,32 +302,31 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return ExchangePaymentResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ExchangePaymentResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Exchange or payment not found');
         return ExchangePaymentResponse(
           success: false,
           message: 'Exchange or payment not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get payment details');
         return ExchangePaymentResponse(
           success: false,
           message: 'Failed to get payment details.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return ExchangePaymentResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -336,6 +335,7 @@ class SugarPartnerService {
   }
 
   static Future<PendingCountResponse> getPendingCount() async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/pending-count';
     try {
       final token = await _getToken();
 
@@ -346,11 +346,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/pending-count';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -361,27 +358,25 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return PendingCountResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return PendingCountResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get pending count');
         return PendingCountResponse(
           success: false,
           message: 'Failed to get pending count.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return PendingCountResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -390,6 +385,7 @@ class SugarPartnerService {
   }
 
   static Future<SugarPartnerHistoryResponse> getHistory({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/history?page=$page';
     try {
       final token = await _getToken();
 
@@ -400,11 +396,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/history?page=$page';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -415,27 +408,25 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return SugarPartnerHistoryResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerHistoryResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get history');
         return SugarPartnerHistoryResponse(
           success: false,
           message: 'Failed to get history.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerHistoryResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -444,6 +435,7 @@ class SugarPartnerService {
   }
 
   static Future<HardRejectsResponse> getHardRejects({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/hard-rejects?page=$page';
     try {
       final token = await _getToken();
 
@@ -454,11 +446,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/hard-rejects?page=$page';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -469,27 +458,25 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return HardRejectsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return HardRejectsResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get hard rejects');
         return HardRejectsResponse(
           success: false,
           message: 'Failed to get hard rejects.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return HardRejectsResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -497,7 +484,8 @@ class SugarPartnerService {
     }
   }
 
-  static Future<SugarPartnerActionResponse> addHardReject(int userId) async {
+  static Future<SugarPartnerActionResponse> addHardReject(int userId, {String? reason}) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/hard-reject/$userId';
     try {
       final token = await _getToken();
 
@@ -508,11 +496,14 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/hard-reject/$userId';
+      // FIX: API Section 15.9 requires 'reason' in body
+      final body = <String, dynamic>{};
+      if (reason != null && reason.isNotEmpty) {
+        body['reason'] = reason;
+      }
 
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -521,40 +512,41 @@ class SugarPartnerService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
+        body: jsonEncode(body),
       );
-
-      
-      
-      
-      
 
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return SugarPartnerActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot hard reject this user');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot hard reject this user.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'User not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to add hard reject');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to add hard reject.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -563,6 +555,7 @@ class SugarPartnerService {
   }
 
   static Future<SugarPartnerActionResponse> removeHardReject(int userId) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/hard-reject/$userId';
     try {
       final token = await _getToken();
 
@@ -573,11 +566,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/hard-reject/$userId';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -588,33 +578,32 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return SugarPartnerActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found in hard reject list');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'User not found in hard reject list.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to remove hard reject');
         return SugarPartnerActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to remove hard reject.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -623,6 +612,7 @@ class SugarPartnerService {
   }
 
   static Future<SugarPartnerPaymentsResponse> getPayments({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/payments?page=$page';
     try {
       final token = await _getToken();
 
@@ -633,11 +623,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/sugar-partner/payments?page=$page';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -648,27 +635,25 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return SugarPartnerPaymentsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerPaymentsResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get payments');
         return SugarPartnerPaymentsResponse(
           success: false,
           message: 'Failed to get payments.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerPaymentsResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -682,6 +667,8 @@ class SugarPartnerService {
     String? bio,
     String? expectations,
   }) async {
+    // FIX: Use correct endpoint for sugar partner settings
+    final url = '${ApiConstants.baseUrl}/profile/sugar-partner';
     try {
       final token = await _getToken();
 
@@ -709,18 +696,22 @@ class SugarPartnerService {
       final backendWhatIAm = uiToBackendIAm[whatIAm] ?? whatIAm;
       final backendWhatIWant = whatIWant.map((e) => uiToBackendIWant[e] ?? e).toList();
 
-      final url = '${ApiConstants.baseUrl}/profile';
-      final body = {
+      // FIX: Send what_i_want as proper array, not JSON encoded string
+      final body = <String, dynamic>{
         'what_i_am': backendWhatIAm,
-        'what_i_want': backendWhatIWant,
-        'sugar_partner_bio': bio ?? '',
-        'sugar_partner_expectations': expectations ?? '',
+        'what_i_want': backendWhatIWant, // Send as array, not jsonEncode
       };
 
-      
-      
-      
-      
+      // Only add optional fields if they have values
+      if (bio != null && bio.isNotEmpty) {
+        body['sugar_partner_bio'] = bio;
+      }
+      if (expectations != null && expectations.isNotEmpty) {
+        body['sugar_partner_expectations'] = expectations;
+      }
+
+      // Log API call with body
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
       final response = await http.put(
         Uri.parse(url),
@@ -732,14 +723,10 @@ class SugarPartnerService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('sugar_partner_what_i_am', whatIAm);
         await prefs.setStringList('sugar_partner_what_i_want', whatIWant);
@@ -755,23 +742,34 @@ class SugarPartnerService {
           expectations: expectations,
         );
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerPreferencesResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
-      } else if (response.statusCode == 422) {
+      } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 403, error: responseData['message'] ?? 'Sugar Partner feature not available');
+        // Sugar Partner feature not available (privacy setting disabled or no gallery images)
         return SugarPartnerPreferencesResponse(
           success: false,
-          message: responseData['message'] ?? 'Invalid preferences data.',
+          message: responseData['message'] ?? 'Sugar Partner feature is not available. Please enable it in privacy settings.',
+        );
+      } else if (response.statusCode == 422) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 422, error: responseData['message'] ?? 'Validation error');
+        // Validation error - likely missing gallery images
+        return SugarPartnerPreferencesResponse(
+          success: false,
+          message: responseData['message'] ?? 'Please upload photos to your gallery first.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to update preferences');
         return SugarPartnerPreferencesResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to update preferences.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerPreferencesResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -780,6 +778,7 @@ class SugarPartnerService {
   }
 
   static Future<SugarPartnerPreferencesResponse> getPreferences() async {
+    final url = '${ApiConstants.baseUrl}/profile';
     try {
       final token = await _getToken();
 
@@ -790,11 +789,8 @@ class SugarPartnerService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/profile';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -805,18 +801,14 @@ class SugarPartnerService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         final userData = responseData['data']?['user'];
 
         if (userData != null) {
-          final apiWhatIAm = userData['what_i_am'];
-          final apiWhatIWant = userData['what_i_want'];
+          // FIX: API returns sugar_partner_types as combined array, NOT what_i_am/what_i_want separately
+          final sugarPartnerTypes = userData['sugar_partner_types'];
           final sugarPartnerBio = userData['sugar_partner_bio'];
           final sugarPartnerExpectations = userData['sugar_partner_expectations'];
 
@@ -834,41 +826,58 @@ class SugarPartnerService {
             'sugar_daddy': 'I want Sugar Daddy',
           };
 
-          List<String>? whatIWant;
-          if (apiWhatIWant != null) {
-            List<dynamic> rawList = [];
-            if (apiWhatIWant is List) {
-              rawList = apiWhatIWant;
-            } else if (apiWhatIWant is String && apiWhatIWant.isNotEmpty) {
-              try {
-                final parsed = jsonDecode(apiWhatIWant);
-                if (parsed is List) {
-                  rawList = parsed;
-                }
-              } catch (_) {
-                rawList = [apiWhatIWant];
-              }
-            }
-            whatIWant = rawList
-                .map((e) => backendToUiIWant[e.toString()] ?? e.toString())
-                .toList();
-          }
+          // Identity types - the first one found is "what I am"
+          const identityTypes = ['sugar_daddy', 'sugar_mommy', 'sugar_boy', 'sugar_babe'];
 
           String? whatIAm;
-          if (apiWhatIAm != null && apiWhatIAm.toString().isNotEmpty) {
-            whatIAm = backendToUiIAm[apiWhatIAm.toString()] ?? apiWhatIAm.toString();
-            final prefs = await SharedPreferences.getInstance();
+          List<String> whatIWant = [];
+
+          if (sugarPartnerTypes != null && sugarPartnerTypes is List && sugarPartnerTypes.isNotEmpty) {
+            // Find what_i_am (first identity type in the list)
+            String? foundIdentity;
+            for (final type in sugarPartnerTypes) {
+              if (identityTypes.contains(type.toString())) {
+                foundIdentity = type.toString();
+                break;
+              }
+            }
+
+            if (foundIdentity != null) {
+              whatIAm = backendToUiIAm[foundIdentity];
+
+              // what_i_want = all other types except the identity
+              for (final type in sugarPartnerTypes) {
+                final typeStr = type.toString();
+                if (typeStr != foundIdentity && identityTypes.contains(typeStr)) {
+                  final uiValue = backendToUiIWant[typeStr];
+                  if (uiValue != null) {
+                    whatIWant.add(uiValue);
+                  }
+                }
+              }
+            }
+          }
+
+          // Save to SharedPreferences for offline access
+          final prefs = await SharedPreferences.getInstance();
+          if (whatIAm != null) {
             await prefs.setString('sugar_partner_what_i_am', whatIAm);
-          } else {
-            final prefs = await SharedPreferences.getInstance();
-            whatIAm = prefs.getString('sugar_partner_what_i_am');
+          }
+          if (whatIWant.isNotEmpty) {
+            await prefs.setStringList('sugar_partner_what_i_want', whatIWant);
+          }
+          if (sugarPartnerBio != null) {
+            await prefs.setString('sugar_partner_bio', sugarPartnerBio.toString());
+          }
+          if (sugarPartnerExpectations != null) {
+            await prefs.setString('sugar_partner_expectations', sugarPartnerExpectations.toString());
           }
 
           return SugarPartnerPreferencesResponse(
             success: true,
             message: 'Preferences loaded successfully.',
             whatIAm: whatIAm,
-            whatIWant: whatIWant,
+            whatIWant: whatIWant.isNotEmpty ? whatIWant : null,
             bio: sugarPartnerBio?.toString(),
             expectations: sugarPartnerExpectations?.toString(),
           );
@@ -879,24 +888,30 @@ class SugarPartnerService {
           message: 'No preferences set yet.',
         );
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return SugarPartnerPreferencesResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get preferences');
         return SugarPartnerPreferencesResponse(
           success: false,
           message: 'Failed to get preferences.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SugarPartnerPreferencesResponse(
         success: false,
         message: 'Network error. Please check your connection.',
       );
     }
   }
+
+  // REMOVED: getSugarPartnerRequests() - Endpoint /sugar-partners/requests does NOT exist. Use getExchanges() instead.
+  // REMOVED: respondToSugarPartnerRequest() - Endpoint /sugar-partners/requests/{id}/respond does NOT exist. Use respondToExchange() instead.
+  // REMOVED: getMySugarPartners() - Endpoint /sugar-partners/my-partners does NOT exist. Use getExchanges() with status filter.
 }
 
 
@@ -919,11 +934,11 @@ class SugarPartnerExchangesResponse {
     Map<String, dynamic>? paginationObj;
 
     if (dataObj != null && dataObj is Map<String, dynamic>) {
-      exchangesList = dataObj['exchanges'] as List<dynamic>?;
-      paginationObj = dataObj['pagination'] as Map<String, dynamic>?;
+      exchangesList = dataObj['exchanges'] as List<dynamic>? ;
+      paginationObj = dataObj['pagination'] as Map<String, dynamic>? ;
     } else if (dataObj != null && dataObj is List) {
       exchangesList = dataObj;
-      paginationObj = json['pagination'] as Map<String, dynamic>?;
+      paginationObj = json['pagination'] as Map<String, dynamic>? ;
     }
 
     return SugarPartnerExchangesResponse(
@@ -981,7 +996,7 @@ class SugarPartnerExchange {
       receiverId: json['receiver_id'] ?? 0,
       status: json['status'] ?? 'pending',
       exchangeType: json['exchange_type'] ?? json['type'],
-      amount: json['amount'] != null ? (json['amount']).toDouble() : null,
+      amount: SugarPartnerService._parseDouble(json['amount']),
       message: json['message'],
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
@@ -1032,7 +1047,7 @@ class SugarPartnerUser {
       age: json['age'] != null ? (json['age'] is int ? json['age'] : (json['age'] as num).toInt()) : null,
       gender: json['gender'],
       city: json['city'],
-      rating: json['rating'] != null ? (json['rating']).toDouble() : null,
+      rating: SugarPartnerService._parseDouble(json['rating']),
       isVerified: SugarPartnerService._parseBool(json['is_verified']),
       bio: json['bio'],
     );
@@ -1090,9 +1105,7 @@ class ViewProfilesResponse {
           .toList()
           : []),
       requiresPayment: SugarPartnerService._parseBool(json['requires_payment']),
-      paymentAmount: json['payment_amount'] != null
-          ? (json['payment_amount']).toDouble()
-          : null,
+      paymentAmount: SugarPartnerService._parseDouble(json['payment_amount']),
     );
   }
 }
@@ -1171,7 +1184,7 @@ class SugarPartnerPayment {
       id: json['id'] ?? 0,
       exchangeId: json['exchange_id'] ?? 0,
       userId: json['user_id'] ?? 0,
-      amount: json['amount'] != null ? (json['amount']).toDouble() : 0.0,
+      amount: SugarPartnerService._parseDouble(json['amount']) ?? 0.0,
       status: json['status'] ?? 'pending',
       paymentMethod: json['payment_method'],
       transactionId: json['transaction_id'],
@@ -1312,9 +1325,7 @@ class SugarPartnerPaymentsResponse {
       pagination: json['pagination'] != null
           ? SugarPartnerPaginationMeta.fromJson(json['pagination'])
           : null,
-      totalAmount: json['total_amount'] != null
-          ? (json['total_amount']).toDouble()
-          : null,
+      totalAmount: SugarPartnerService._parseDouble(json['total_amount']),
     );
   }
 }
@@ -1376,6 +1387,96 @@ class SugarPartnerPreferencesResponse {
       whatIWant: whatIWantList,
       bio: json['bio'],
       expectations: json['expectations'],
+    );
+  }
+}
+
+class SugarPartnerRequestsResponse {
+  final bool success;
+  final String message;
+  final List<SugarPartnerRequest> data;
+
+  SugarPartnerRequestsResponse({
+    required this.success,
+    required this.message,
+    this.data = const [],
+  });
+
+  factory SugarPartnerRequestsResponse.fromJson(Map<String, dynamic> json) {
+    return SugarPartnerRequestsResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'] != null && json['data'] is List
+          ? (json['data'] as List)
+          .map((item) => SugarPartnerRequest.fromJson(item))
+          .toList()
+          : [],
+    );
+  }
+}
+
+class SugarPartnerRequest {
+  final int id;
+  final int senderId;
+  final int receiverId;
+  final String status;
+  final String? message;
+  final String? createdAt;
+  final String? updatedAt;
+  final SugarPartnerUser? sender;
+
+  SugarPartnerRequest({
+    required this.id,
+    required this.senderId,
+    required this.receiverId,
+    required this.status,
+    this.message,
+    this.createdAt,
+    this.updatedAt,
+    this.sender,
+  });
+
+  factory SugarPartnerRequest.fromJson(Map<String, dynamic> json) {
+    return SugarPartnerRequest(
+      id: json['id'] ?? 0,
+      senderId: json['sender_id'] ?? 0,
+      receiverId: json['receiver_id'] ?? 0,
+      status: json['status'] ?? 'pending',
+      message: json['message'],
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+      sender: json['sender'] != null
+          ? SugarPartnerUser.fromJson(json['sender'])
+          : null,
+    );
+  }
+}
+
+class MySugarPartnersResponse {
+  final bool success;
+  final String message;
+  final List<SugarPartnerUser> data;
+  final SugarPartnerPaginationMeta? pagination;
+
+  MySugarPartnersResponse({
+    required this.success,
+    required this.message,
+    this.data = const [],
+    this.pagination,
+  });
+
+  factory MySugarPartnersResponse.fromJson(Map<String, dynamic> json) {
+    return MySugarPartnersResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'] != null && json['data'] is List
+          ? (json['data'] as List)
+          .map((item) => SugarPartnerUser.fromJson(item))
+          .toList()
+          : [],
+      pagination: json['pagination'] != null
+          ? SugarPartnerPaginationMeta.fromJson(json['pagination'])
+          : null,
     );
   }
 }

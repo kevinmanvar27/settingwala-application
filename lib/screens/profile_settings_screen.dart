@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../Service/profile_service.dart';
 import '../Service/avatar_service.dart';
+import '../utils/auth_helper.dart';
 // Removed BookingService import - chat icon visibility is now handled by ChatIconProvider
 
 class ProfileSettingsScreen extends StatefulWidget {
@@ -76,6 +77,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
   bool _isLoadingProfile = true;
   bool _isSaving = false;
   bool _isUploadingAvatar = false;
+  bool _isValidating = true;
   
   final ScrollController _scrollController = ScrollController();
   
@@ -98,8 +100,23 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
     );
     
     _animationController.forward();
-    _loadProfile();
+    _validateAndLoadData();
     // Removed _checkChatIconVisibility() - now handled by ChatIconProvider
+  }
+
+  // Validate user first, then load data if valid
+  Future<void> _validateAndLoadData() async {
+    final isValid = await AuthHelper.validateUserOrRedirect(context);
+    
+    if (!mounted) return;
+    
+    if (isValid) {
+      setState(() {
+        _isValidating = false;
+      });
+      _loadProfile();
+    }
+    // If not valid, AuthHelper already redirected to login
   }
 
   // Removed _checkChatIconVisibility() method - now handled by ChatIconProvider globally
@@ -408,6 +425,21 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
     final isSmallScreen = screenWidth < 360;
     final isTablet = screenWidth >= 600;
 
+    // Show loading while validating user
+    if (_isValidating) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Edit Profile'),
+          backgroundColor: colors.card,
+        ),
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+          ),
+        ),
+      );
+    }
+
     // Get chat notifier for ListenableBuilder
     final chatNotifier = ChatIconProvider.maybeOf(context);
     
@@ -462,6 +494,18 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
                         label: 'Phone Number',
                         icon: Icons.phone,
                         keyboardType: TextInputType.phone,
+                        maxLength: 10,
+                        validator: (value) {
+                          if (value != null && value.isNotEmpty) {
+                            if (value.length != 10) {
+                              return 'Phone number must be exactly 10 digits';
+                            }
+                            if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                              return 'Phone number must contain only digits';
+                            }
+                          }
+                          return null;
+                        },
                         colors: colors,
                         primaryColor: primaryColor,
                       ),
@@ -526,6 +570,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
                       SizedBox(height: isTablet ? 32 : 24),
 
                       
+
                       _buildSaveButton(colors, primaryColor, isDark),
                       SizedBox(height: isTablet ? 32 : 24),
                     ],
@@ -622,6 +667,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
     int maxLines = 1,
     required AppColorSet colors,
     required Color primaryColor,
+    String? Function(String?)? validator,
+    int? maxLength,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
@@ -644,6 +691,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
         controller: controller,
         keyboardType: keyboardType,
         maxLines: maxLines,
+        maxLength: maxLength,
+        validator: validator,
         style: TextStyle(
           color: colors.textPrimary,
           fontSize: isSmallScreen ? 14 : isTablet ? 16 : 15,
@@ -656,6 +705,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> with Sing
           ),
           prefixIcon: Icon(icon, color: primaryColor),
           border: InputBorder.none,
+          counterText: '',
+          errorStyle: TextStyle(
+            color: AppColors.error,
+            fontSize: isSmallScreen ? 10 : isTablet ? 12 : 11,
+          ),
           contentPadding: EdgeInsets.symmetric(
             horizontal: isSmallScreen ? 12 : isTablet ? 20 : 16,
             vertical: isSmallScreen ? 12 : isTablet ? 18 : 14,

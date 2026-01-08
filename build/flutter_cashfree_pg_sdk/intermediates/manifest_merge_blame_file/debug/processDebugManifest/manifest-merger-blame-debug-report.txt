@@ -1,0 +1,14 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.cashfree.flutter_cashfree_pg_sdk" >
+4
+5    <uses-sdk android:minSdkVersion="19" />
+6
+7    <meta-data
+7-->C:\Users\ADMIN\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_cashfree_pg_sdk-2.2.9+47\android\src\main\AndroidManifest.xml:2:5-67
+8        android:name="flutterEmbedding"
+8-->C:\Users\ADMIN\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_cashfree_pg_sdk-2.2.9+47\android\src\main\AndroidManifest.xml:2:16-47
+9        android:value="2" />
+9-->C:\Users\ADMIN\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_cashfree_pg_sdk-2.2.9+47\android\src\main\AndroidManifest.xml:2:48-65
+10
+11</manifest>

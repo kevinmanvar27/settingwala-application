@@ -1,0 +1,3168 @@
+================================================================================
+                    SETTINGWALA API DOCUMENTATION
+                    Base URL: https://settingwala.com//api/v1
+                    Total APIs: 104
+================================================================================
+
+================================================================================
+                            AUTHENTICATION HEADERS
+================================================================================
+
+For Protected Routes (requires login):
+    Authorization: Bearer {your_token}
+    Content-Type: application/json
+    Accept: application/json
+
+For Public Routes:
+    Content-Type: application/json
+    Accept: application/json
+
+================================================================================
+                    1. AUTHENTICATION ROUTES (8 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+1.1 REGISTER USER
+--------------------------------------------------------------------------------
+URL: POST /auth/register
+Auth: Not Required
+
+Body:
+{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "password": "password123",
+    "password_confirmation": "password123",
+    "phone": "9876543210",
+    "gender": "male",
+    "date_of_birth": "1995-05-15"
+}
+
+Response (201):
+{
+    "success": true,
+    "message": "Registration successful",
+    "data": {
+        "user": {
+            "id": 1,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "phone": "9876543210",
+            "gender": "male",
+            "date_of_birth": "1995-05-15",
+            "profile_picture_url": null,
+            "is_verified": false,
+            "created_at": "2025-01-07T10:00:00.000000Z"
+        },
+        "token": "1|abc123xyz456...",
+        "token_type": "Bearer"
+    }
+}
+
+Error Response (422):
+{
+    "success": false,
+    "message": "Validation failed",
+    "errors": {
+        "email": ["The email has already been taken."]
+    }
+}
+
+--------------------------------------------------------------------------------
+1.2 LOGIN
+--------------------------------------------------------------------------------
+URL: POST /auth/login
+Auth: Not Required
+
+Body:
+{
+    "email": "john@example.com",
+    "password": "password123"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "user": {
+            "id": 1,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "phone": "9876543210",
+            "gender": "male",
+            "profile_picture_url": "https://domain.com/storage/profile-pictures/abc.jpg",
+            "is_time_spending_enabled": true,
+            "hourly_rate": 500.00
+        },
+        "token": "2|def456xyz789...",
+        "token_type": "Bearer"
+    }
+}
+
+Error Response (401):
+{
+    "success": false,
+    "message": "Invalid credentials"
+}
+
+--------------------------------------------------------------------------------
+1.3 GOOGLE LOGIN
+--------------------------------------------------------------------------------
+URL: POST /auth/google
+Auth: Not Required
+
+Body (Option 1 - ID Token):
+{
+    "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+Body (Option 2 - Direct):
+{
+    "google_id": "1234567890",
+    "email": "john@gmail.com",
+    "name": "John Doe",
+    "avatar": "https://lh3.googleusercontent.com/..."
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "user": {
+            "id": 1,
+            "name": "John Doe",
+            "email": "john@gmail.com",
+            "profile_picture_url": "https://lh3.googleusercontent.com/..."
+        },
+        "token": "3|ghi789xyz012...",
+        "token_type": "Bearer",
+        "is_new_user": false
+    }
+}
+
+--------------------------------------------------------------------------------
+1.4 FORGOT PASSWORD
+--------------------------------------------------------------------------------
+URL: POST /auth/forgot-password
+Auth: Not Required
+
+Body:
+{
+    "email": "john@example.com"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "OTP sent to your email"
+}
+
+--------------------------------------------------------------------------------
+1.5 RESET PASSWORD
+--------------------------------------------------------------------------------
+URL: POST /auth/reset-password
+Auth: Not Required
+
+Body:
+{
+    "email": "john@example.com",
+    "otp": "123456",
+    "password": "newpassword123",
+    "password_confirmation": "newpassword123"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Password reset successful"
+}
+
+--------------------------------------------------------------------------------
+1.6 VERIFY OTP
+--------------------------------------------------------------------------------
+URL: POST /auth/verify-otp
+Auth: Not Required
+
+Body:
+{
+    "email": "john@example.com",
+    "otp": "123456"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "OTP verified successfully"
+}
+
+--------------------------------------------------------------------------------
+1.7 RESEND OTP
+--------------------------------------------------------------------------------
+URL: POST /auth/resend-otp
+Auth: Not Required
+
+Body:
+{
+    "email": "john@example.com"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "OTP resent successfully"
+}
+
+--------------------------------------------------------------------------------
+1.8 LOGOUT
+--------------------------------------------------------------------------------
+URL: POST /auth/logout
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Logged out successfully"
+}
+
+--------------------------------------------------------------------------------
+1.9 REFRESH TOKEN
+--------------------------------------------------------------------------------
+URL: POST /auth/refresh-token
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Token refreshed",
+    "data": {
+        "token": "4|jkl012xyz345...",
+        "token_type": "Bearer"
+    }
+}
+
+--------------------------------------------------------------------------------
+1.10 DELETE ACCOUNT
+--------------------------------------------------------------------------------
+URL: DELETE /auth/delete-account
+Auth: Required
+
+Body:
+{
+    "password": "password123",
+    "reason": "No longer need the service"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Account deleted successfully"
+}
+
+================================================================================
+                    2. PUBLIC DATA ROUTES (2 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1 GET SUBSCRIPTION PLANS
+--------------------------------------------------------------------------------
+URL: GET /subscription-plans
+Auth: Not Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "plans": [
+            {
+                "id": 1,
+                "name": "Basic",
+                "price": 299.00,
+                "duration_days": 30,
+                "features": ["Feature 1", "Feature 2"],
+                "is_popular": false
+            },
+            {
+                "id": 2,
+                "name": "Premium",
+                "price": 799.00,
+                "duration_days": 90,
+                "features": ["All Basic features", "Premium Feature 1"],
+                "is_popular": true
+            }
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+2.2 GET APP SETTINGS
+--------------------------------------------------------------------------------
+URL: GET /app-settings
+Auth: Not Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "app_name": "SettingWala",
+        "app_version": "1.0.0",
+        "min_app_version": "1.0.0",
+        "maintenance_mode": false,
+        "platform_fee": 50.00,
+        "commission_percentage": 10,
+        "support_email": "support@settingwala.com",
+        "support_phone": "+91 9876543210"
+    }
+}
+
+================================================================================
+                    3. PROFILE ROUTES (8 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 GET PROFILE
+--------------------------------------------------------------------------------
+URL: GET /profile
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "user": {
+            "id": 1,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "phone": "9876543210",
+            "gender": "male",
+            "date_of_birth": "1995-05-15",
+            "profile_picture_url": "https://domain.com/storage/profile-pictures/abc.jpg",
+            "interests": ["music", "travel", "photography"],
+            "expectation": "Looking for meaningful connections",
+            "is_time_spending_enabled": true,
+            "hourly_rate": 500.00,
+            "service_location": "Mumbai",
+            "availability_schedule": {
+                "monday": {"start_time": "09:00", "end_time": "18:00", "is_holiday": false},
+                "tuesday": {"start_time": "09:00", "end_time": "18:00", "is_holiday": false}
+            },
+            "is_public_profile": true,
+            "show_contact_number": false,
+            "average_rating": 4.5,
+            "total_reviews": 25
+        },
+        "gallery": [
+            {"id": 1, "url": "https://domain.com/storage/gallery/img1.jpg", "order": 1},
+            {"id": 2, "url": "https://domain.com/storage/gallery/img2.jpg", "order": 2}
+        ],
+        "subscription": {
+            "plan_name": "Premium",
+            "expires_at": "2025-04-07T00:00:00.000000Z",
+            "is_active": true
+        },
+        "features": {
+            "time_spending": true,
+            "gallery": true,
+            "partner_swapping": true,
+            "sugar_partner": true,
+            "subscription_model": true
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+3.2 UPDATE PROFILE
+--------------------------------------------------------------------------------
+URL: PUT /profile
+Auth: Required
+
+Body:
+{
+    "name": "John Doe Updated",
+    "contact_number": "9876543211",
+    "gender": "male",
+    "date_of_birth": "1995-05-15",
+    "interests": ["music", "travel", "photography", "cooking"],
+    "expectation": "Looking for meaningful connections and friendships"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Profile updated successfully",
+    "data": {
+        "user": {
+            "id": 1,
+            "name": "John Doe Updated",
+            "email": "john@example.com",
+            "contact_number": "9876543211",
+            "interests": ["music", "travel", "photography", "cooking"]
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+3.3 UPDATE AVATAR
+--------------------------------------------------------------------------------
+URL: POST /profile/avatar
+Auth: Required
+Content-Type: multipart/form-data
+
+Body:
+{
+    "profile_picture": [FILE - image/jpeg, image/png - max 5MB]
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Profile picture updated successfully",
+    "data": {
+        "profile_picture_url": "https://domain.com/storage/profile-pictures/new-abc.jpg"
+    }
+}
+
+--------------------------------------------------------------------------------
+3.4 UPDATE PRIVACY SETTINGS
+--------------------------------------------------------------------------------
+URL: PUT /profile/privacy-settings
+Auth: Required
+
+Body:
+{
+    "is_public_profile": true,
+    "show_contact_number": false,
+    "show_date_of_birth": true,
+    "hide_dob_year": true,
+    "show_interests_hobbies": true,
+    "show_expectations": true,
+    "show_gallery_images": true,
+    "is_time_spending_enabled": true,
+    "is_couple_activity_enabled": false,
+    "interested_in_sugar_partner": false,
+    "hide_sugar_partner_notifications": true
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Privacy settings updated successfully"
+}
+
+--------------------------------------------------------------------------------
+3.5 UPDATE TIME SPENDING SETTINGS
+--------------------------------------------------------------------------------
+URL: PUT /profile/time-spending
+Auth: Required
+
+Body:
+{
+    "is_time_spending_enabled": true,
+    "hourly_rate": 500.00,
+    "service_location": "Mumbai, Maharashtra",
+    "availability_schedule": {
+        "monday": {"start_time": "09:00", "end_time": "18:00", "is_holiday": false},
+        "tuesday": {"start_time": "09:00", "end_time": "18:00", "is_holiday": false},
+        "wednesday": {"start_time": "09:00", "end_time": "18:00", "is_holiday": false},
+        "thursday": {"start_time": "09:00", "end_time": "18:00", "is_holiday": false},
+        "friday": {"start_time": "09:00", "end_time": "18:00", "is_holiday": false},
+        "saturday": {"start_time": "10:00", "end_time": "16:00", "is_holiday": false},
+        "sunday": {"start_time": "00:00", "end_time": "00:00", "is_holiday": true}
+    }
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Time spending settings updated successfully",
+    "data": {
+        "user": {
+            "is_time_spending_enabled": true,
+            "hourly_rate": 500.00,
+            "service_location": "Mumbai, Maharashtra",
+            "availability_schedule": {...}
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+3.6 UPDATE COUPLE ACTIVITY SETTINGS
+--------------------------------------------------------------------------------
+URL: PUT /profile/couple-activity
+Auth: Required
+
+Body:
+{
+    "is_couple_activity_enabled": true
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Couple activity settings updated successfully"
+}
+
+--------------------------------------------------------------------------------
+3.7 UPDATE SUGAR PARTNER SETTINGS
+--------------------------------------------------------------------------------
+URL: PUT /profile/sugar-partner
+Auth: Required
+
+Body:
+{
+    "interested_in_sugar_partner": true,
+    "hide_sugar_partner_notifications": false
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Sugar partner settings updated successfully"
+}
+
+--------------------------------------------------------------------------------
+3.8 GET COMPLETION STATUS
+--------------------------------------------------------------------------------
+URL: GET /profile/completion-status
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "percentage": 75,
+        "fields": {
+            "name": true,
+            "email": true,
+            "phone": true,
+            "gender": true,
+            "date_of_birth": true,
+            "profile_picture": true,
+            "interests": false,
+            "expectation": false,
+            "gallery": false
+        }
+    }
+}
+
+================================================================================
+                    4. GALLERY ROUTES (4 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 GET GALLERY
+--------------------------------------------------------------------------------
+URL: GET /gallery
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "gallery": [
+            {
+                "id": 1,
+                "url": "https://domain.com/storage/gallery/img1.jpg",
+                "order": 1,
+                "created_at": "2025-01-01T10:00:00.000000Z"
+            },
+            {
+                "id": 2,
+                "url": "https://domain.com/storage/gallery/img2.jpg",
+                "order": 2,
+                "created_at": "2025-01-02T10:00:00.000000Z"
+            }
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+4.2 UPLOAD GALLERY IMAGE
+--------------------------------------------------------------------------------
+URL: POST /gallery/upload
+Auth: Required
+Content-Type: multipart/form-data
+
+Body:
+{
+    "image": [FILE - image/jpeg, image/png - max 5MB]
+}
+
+Response (201):
+{
+    "success": true,
+    "message": "Image uploaded successfully",
+    "data": {
+        "id": 3,
+        "url": "https://domain.com/storage/gallery/img3.jpg",
+        "order": 3
+    }
+}
+
+--------------------------------------------------------------------------------
+4.3 REORDER GALLERY
+--------------------------------------------------------------------------------
+URL: POST /gallery/reorder
+Auth: Required
+
+Body:
+{
+    "order": [3, 1, 2]
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Gallery reordered successfully"
+}
+
+--------------------------------------------------------------------------------
+4.4 DELETE GALLERY IMAGE
+--------------------------------------------------------------------------------
+URL: DELETE /gallery/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Image deleted successfully"
+}
+
+================================================================================
+                    5. USER DISCOVERY ROUTES (5 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+5.1 GET USERS (Find Persons)
+--------------------------------------------------------------------------------
+URL: GET /users
+Auth: Required
+
+Query Parameters:
+- page: 1 (pagination)
+- per_page: 20
+- gender: male/female/other
+- min_age: 18
+- max_age: 50
+- location: Mumbai
+- min_rate: 100
+- max_rate: 1000
+- is_available: true
+- sort_by: rating/price/distance
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "users": [
+            {
+                "id": 2,
+                "name": "Jane Doe",
+                "gender": "female",
+                "age": 28,
+                "profile_picture_url": "https://domain.com/storage/profile-pictures/jane.jpg",
+                "hourly_rate": 500.00,
+                "service_location": "Mumbai",
+                "average_rating": 4.8,
+                "total_reviews": 50,
+                "is_available_today": true
+            }
+        ],
+        "pagination": {
+            "current_page": 1,
+            "last_page": 5,
+            "per_page": 20,
+            "total": 100
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+5.2 GET USER DETAILS
+--------------------------------------------------------------------------------
+URL: GET /users/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "user": {
+            "id": 2,
+            "name": "Jane Doe",
+            "gender": "female",
+            "age": 28,
+            "profile_picture_url": "https://domain.com/storage/profile-pictures/jane.jpg",
+            "interests": ["music", "travel"],
+            "expectation": "Looking for genuine connections",
+            "hourly_rate": 500.00,
+            "service_location": "Mumbai",
+            "average_rating": 4.8,
+            "total_reviews": 50,
+            "gallery": [
+                {"id": 1, "url": "https://domain.com/storage/gallery/jane1.jpg"}
+            ]
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+5.3 GET USER AVAILABILITY
+--------------------------------------------------------------------------------
+URL: GET /users/{id}/availability
+Auth: Required
+
+Query Parameters:
+- date: 2025-01-15 (optional, defaults to today)
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "date": "2025-01-15",
+        "day_of_week": "wednesday",
+        "is_available": true,
+        "available_hours": {
+            "start_time": "09:00",
+            "end_time": "18:00"
+        },
+        "available_slots": [
+            {"start": "09:00", "end": "10:00", "display": "09:00 AM - 10:00 AM"},
+            {"start": "10:00", "end": "11:00", "display": "10:00 AM - 11:00 AM"},
+            {"start": "14:00", "end": "15:00", "display": "02:00 PM - 03:00 PM"}
+        ],
+        "booked_slots": [
+            {"start": "11:00", "end": "14:00"}
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+5.4 GET USER REVIEWS
+--------------------------------------------------------------------------------
+URL: GET /users/{id}/reviews
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 10
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "reviews": [
+            {
+                "id": 1,
+                "rating": 5,
+                "review": "Great experience! Very professional.",
+                "reviewer": {
+                    "id": 3,
+                    "name": "Mike",
+                    "profile_picture_url": "https://domain.com/storage/profile-pictures/mike.jpg"
+                },
+                "created_at": "2025-01-05T10:00:00.000000Z"
+            }
+        ],
+        "average_rating": 4.8,
+        "total_reviews": 50,
+        "rating_breakdown": {
+            "5": 40,
+            "4": 8,
+            "3": 2,
+            "2": 0,
+            "1": 0
+        },
+        "pagination": {
+            "current_page": 1,
+            "last_page": 5,
+            "per_page": 10,
+            "total": 50
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+5.5 REPORT USER
+--------------------------------------------------------------------------------
+URL: POST /users/{id}/report
+Auth: Required
+
+Body:
+{
+    "reason": "inappropriate_behavior",
+    "description": "The user was rude during our meeting."
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "User reported successfully. Our team will review this report."
+}
+
+================================================================================
+                    6. BOOKING ROUTES (14 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+6.1 GET BOOKINGS
+--------------------------------------------------------------------------------
+URL: GET /bookings
+Auth: Required
+
+Query Parameters:
+- type: all/as_client/as_provider
+- status: pending/confirmed/completed/cancelled
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "bookings": [
+            {
+                "id": 1,
+                "booking_date": "2025-01-15T10:00:00.000000Z",
+                "duration_hours": 2,
+                "actual_duration_hours": 2,
+                "hourly_rate": 500.00,
+                "base_amount": 1000.00,
+                "platform_fee": 50.00,
+                "total_amount": 1050.00,
+                "status": "confirmed",
+                "payment_status": "paid",
+                "meeting_location": "Mumbai",
+                "notes": "Looking forward to meeting",
+                "other_user": {
+                    "id": 2,
+                    "name": "Jane Doe",
+                    "profile_picture_url": "https://domain.com/storage/profile-pictures/jane.jpg"
+                },
+                "is_client": true,
+                "can_cancel": true,
+                "can_review": false
+            }
+        ],
+        "pagination": {
+            "current_page": 1,
+            "last_page": 3,
+            "per_page": 20,
+            "total": 45
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+6.2 CREATE BOOKING
+--------------------------------------------------------------------------------
+URL: POST /bookings
+Auth: Required
+
+Body (New Format - Recommended):
+{
+    "provider_id": 2,
+    "booking_date": "2025-01-15",
+    "start_time": "10:00",
+    "end_time": "12:00",
+    "notes": "Looking forward to meeting you"
+}
+
+Body (Legacy Format):
+{
+    "provider_id": 2,
+    "booking_date": "2025-01-15 10:00:00",
+    "duration_hours": 2,
+    "notes": "Looking forward to meeting you"
+}
+
+Response (201):
+{
+    "success": true,
+    "message": "Booking created successfully. Please proceed with payment.",
+    "data": {
+        "booking": {
+            "id": 10,
+            "booking_date": "2025-01-15T10:00:00.000000Z",
+            "duration_hours": 2,
+            "hourly_rate": 500.00,
+            "base_amount": 1000.00,
+            "platform_fee": 50.00,
+            "total_amount": 1050.00,
+            "status": "pending",
+            "payment_status": "pending",
+            "other_user": {
+                "id": 2,
+                "name": "Jane Doe"
+            }
+        }
+    }
+}
+
+Error Response (400 - Slot Unavailable):
+{
+    "success": false,
+    "message": "The selected time slot is not available. Available slots: 09:00 AM - 10:00 AM, 02:00 PM - 03:00 PM",
+    "available_slots": [
+        {"start": "09:00", "end": "10:00", "display": "09:00 AM - 10:00 AM"},
+        {"start": "14:00", "end": "15:00", "display": "02:00 PM - 03:00 PM"}
+    ],
+    "error_type": "slot_unavailable"
+}
+
+--------------------------------------------------------------------------------
+6.3 GET AVAILABLE SLOTS
+--------------------------------------------------------------------------------
+URL: GET /bookings/provider/{providerId}/available-slots
+Auth: Required
+
+Query Parameters:
+- date: 2025-01-15
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "date": "2025-01-15",
+        "provider": {
+            "id": 2,
+            "name": "Jane Doe",
+            "hourly_rate": 500.00
+        },
+        "available_slots": [
+            {"start": "09:00", "end": "10:00", "display": "09:00 AM - 10:00 AM"},
+            {"start": "10:00", "end": "11:00", "display": "10:00 AM - 11:00 AM"},
+            {"start": "14:00", "end": "15:00", "display": "02:00 PM - 03:00 PM"}
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+6.4 GET BOOKING STATUS WITH PROVIDER
+--------------------------------------------------------------------------------
+URL: GET /bookings/provider/{providerId}/status
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "has_active_booking": true,
+        "booking": {
+            "id": 10,
+            "status": "confirmed",
+            "booking_date": "2025-01-15T10:00:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+6.5 GET BOOKING DETAILS
+--------------------------------------------------------------------------------
+URL: GET /bookings/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "booking": {
+            "id": 10,
+            "booking_date": "2025-01-15T10:00:00.000000Z",
+            "duration_hours": 2,
+            "actual_duration_hours": 2,
+            "hourly_rate": 500.00,
+            "base_amount": 1000.00,
+            "platform_fee": 50.00,
+            "total_amount": 1050.00,
+            "commission_percentage": 10,
+            "commission_amount": 100.00,
+            "provider_amount": 900.00,
+            "status": "confirmed",
+            "payment_status": "paid",
+            "meeting_location": "Mumbai",
+            "notes": "Looking forward to meeting",
+            "client": {
+                "id": 1,
+                "name": "John Doe",
+                "profile_picture_url": "..."
+            },
+            "provider": {
+                "id": 2,
+                "name": "Jane Doe",
+                "profile_picture_url": "..."
+            },
+            "verification": {
+                "start_photo_url": null,
+                "end_photo_url": null,
+                "is_verified": false
+            },
+            "rating": null
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+6.6 UPDATE BOOKING
+--------------------------------------------------------------------------------
+URL: PUT /bookings/{id}
+Auth: Required
+
+Body:
+{
+    "booking_date": "2025-01-16",
+    "start_time": "11:00",
+    "end_time": "13:00",
+    "notes": "Updated notes"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Booking updated successfully",
+    "data": {
+        "booking": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+6.7 CANCEL BOOKING
+--------------------------------------------------------------------------------
+URL: POST /bookings/{id}/cancel
+Auth: Required
+
+Body:
+{
+    "reason": "Schedule conflict"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Booking cancelled successfully",
+    "data": {
+        "refund_amount": 1050.00,
+        "refund_status": "processed"
+    }
+}
+
+--------------------------------------------------------------------------------
+6.8 ACCEPT BOOKING (As Provider)
+--------------------------------------------------------------------------------
+URL: POST /bookings/{id}/accept
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Booking accepted successfully",
+    "data": {
+        "booking": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+6.9 REJECT BOOKING (As Provider)
+--------------------------------------------------------------------------------
+URL: POST /bookings/{id}/reject
+Auth: Required
+
+Body:
+{
+    "reason": "Not available at this time"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Booking rejected successfully"
+}
+
+--------------------------------------------------------------------------------
+6.10 GET CHAT DETAILS FOR BOOKING
+--------------------------------------------------------------------------------
+URL: GET /bookings/{id}/chat-details
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "booking_id": 10,
+        "can_chat": true,
+        "other_user": {
+            "id": 2,
+            "name": "Jane Doe",
+            "profile_picture_url": "..."
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+6.11 GET PAYMENT DETAILS
+--------------------------------------------------------------------------------
+URL: GET /bookings/{id}/payment
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "booking_id": 10,
+        "base_amount": 1000.00,
+        "platform_fee": 50.00,
+        "total_amount": 1050.00,
+        "wallet_balance": 500.00,
+        "amount_from_wallet": 500.00,
+        "amount_to_pay": 550.00,
+        "payment_status": "pending"
+    }
+}
+
+--------------------------------------------------------------------------------
+6.12 PROCESS PAYMENT
+--------------------------------------------------------------------------------
+URL: POST /bookings/{id}/process-payment
+Auth: Required
+
+Body:
+{
+    "use_wallet": true,
+    "wallet_amount": 500.00
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Payment initiated",
+    "data": {
+        "payment_session_id": "session_abc123",
+        "order_id": "order_xyz789",
+        "amount": 550.00,
+        "currency": "INR",
+        "cashfree_order": {
+            "order_id": "order_xyz789",
+            "payment_session_id": "session_abc123",
+            "order_status": "ACTIVE"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+6.13 PROCESS DIFFERENCE PAYMENT
+--------------------------------------------------------------------------------
+URL: POST /bookings/{id}/process-difference-payment
+Auth: Required
+
+Body:
+{
+    "use_wallet": true
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Difference payment initiated",
+    "data": {
+        "difference_amount": 200.00,
+        "cashfree_order": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+6.14 WALLET PAYMENT (Full wallet payment)
+--------------------------------------------------------------------------------
+URL: POST /bookings/{id}/wallet-payment
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Payment successful via wallet",
+    "data": {
+        "booking": {...},
+        "wallet_balance": 0.00
+    }
+}
+
+================================================================================
+                    7. PROVIDER BOOKING MANAGEMENT (6 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+7.1 GET PROVIDER BOOKINGS
+--------------------------------------------------------------------------------
+URL: GET /provider/bookings
+Auth: Required
+
+Query Parameters:
+- status: pending/confirmed/completed/cancelled
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "bookings": [...],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+7.2 GET BOOKING REQUESTS
+--------------------------------------------------------------------------------
+URL: GET /provider/booking-requests
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "requests": [
+            {
+                "id": 15,
+                "client": {
+                    "id": 5,
+                    "name": "New Client",
+                    "profile_picture_url": "..."
+                },
+                "booking_date": "2025-01-20T14:00:00.000000Z",
+                "duration_hours": 2,
+                "total_amount": 1050.00,
+                "status": "pending",
+                "created_at": "2025-01-07T10:00:00.000000Z"
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+7.3 PROVIDER ACCEPT BOOKING
+--------------------------------------------------------------------------------
+URL: POST /provider/booking/{id}/accept
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Booking accepted"
+}
+
+--------------------------------------------------------------------------------
+7.4 PROVIDER REJECT BOOKING
+--------------------------------------------------------------------------------
+URL: POST /provider/booking/{id}/reject
+Auth: Required
+
+Body:
+{
+    "reason": "Not available"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Booking rejected"
+}
+
+--------------------------------------------------------------------------------
+7.5 BLOCK CLIENT
+--------------------------------------------------------------------------------
+URL: POST /provider/booking/{id}/block
+Auth: Required
+
+Body:
+{
+    "reason": "Inappropriate behavior"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Client blocked successfully"
+}
+
+--------------------------------------------------------------------------------
+7.6 UNBLOCK CLIENT
+--------------------------------------------------------------------------------
+URL: POST /provider/user/{id}/unblock
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Client unblocked successfully"
+}
+
+================================================================================
+                    8. MEETING VERIFICATION ROUTES (3 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+8.1 UPLOAD START PHOTO
+--------------------------------------------------------------------------------
+URL: POST /meeting-verification/{bookingId}/start-photo
+Auth: Required
+Content-Type: multipart/form-data
+
+Body:
+{
+    "photo": [FILE - image/jpeg, image/png - max 5MB],
+    "latitude": 19.0760,
+    "longitude": 72.8777
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Start photo uploaded successfully",
+    "data": {
+        "verification_id": 1,
+        "start_photo_url": "https://domain.com/storage/verifications/start_abc.jpg",
+        "start_time": "2025-01-15T10:00:00.000000Z"
+    }
+}
+
+--------------------------------------------------------------------------------
+8.2 UPLOAD END PHOTO
+--------------------------------------------------------------------------------
+URL: POST /meeting-verification/{bookingId}/end-photo
+Auth: Required
+Content-Type: multipart/form-data
+
+Body:
+{
+    "photo": [FILE - image/jpeg, image/png - max 5MB],
+    "latitude": 19.0760,
+    "longitude": 72.8777
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "End photo uploaded successfully",
+    "data": {
+        "verification_id": 1,
+        "end_photo_url": "https://domain.com/storage/verifications/end_abc.jpg",
+        "end_time": "2025-01-15T12:00:00.000000Z",
+        "is_verified": true
+    }
+}
+
+--------------------------------------------------------------------------------
+8.3 GET VERIFICATION STATUS
+--------------------------------------------------------------------------------
+URL: GET /meeting-verification/{bookingId}/status
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "booking_id": 10,
+        "verification": {
+            "id": 1,
+            "start_photo_url": "https://domain.com/storage/verifications/start_abc.jpg",
+            "end_photo_url": "https://domain.com/storage/verifications/end_abc.jpg",
+            "start_time": "2025-01-15T10:00:00.000000Z",
+            "end_time": "2025-01-15T12:00:00.000000Z",
+            "is_verified": true,
+            "actual_duration_minutes": 120
+        }
+    }
+}
+
+================================================================================
+                    9. RATING & REVIEWS ROUTES (3 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+9.1 SUBMIT RATING
+--------------------------------------------------------------------------------
+URL: POST /reviews
+Auth: Required
+
+Body:
+{
+    "booking_id": 10,
+    "rating": 5,
+    "review": "Great experience! Very professional and friendly."
+}
+
+Response (201):
+{
+    "success": true,
+    "message": "Review submitted successfully",
+    "data": {
+        "review": {
+            "id": 1,
+            "booking_id": 10,
+            "rating": 5,
+            "review": "Great experience! Very professional and friendly.",
+            "created_at": "2025-01-15T14:00:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+9.2 GET PENDING REVIEWS
+--------------------------------------------------------------------------------
+URL: GET /reviews/pending
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "pending_reviews": [
+            {
+                "booking_id": 11,
+                "other_user": {
+                    "id": 3,
+                    "name": "Another User",
+                    "profile_picture_url": "..."
+                },
+                "booking_date": "2025-01-14T10:00:00.000000Z",
+                "completed_at": "2025-01-14T12:00:00.000000Z"
+            }
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+9.3 CAN REVIEW BOOKING
+--------------------------------------------------------------------------------
+URL: GET /reviews/can-review/{bookingId}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "can_review": true,
+        "reason": null
+    }
+}
+
+Response (200 - Cannot Review):
+{
+    "success": true,
+    "data": {
+        "can_review": false,
+        "reason": "You have already reviewed this booking"
+    }
+}
+
+================================================================================
+                    10. WALLET ROUTES (9 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+10.1 GET WALLET OVERVIEW
+--------------------------------------------------------------------------------
+URL: GET /wallet
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "balance": 5000.00,
+        "pending_balance": 1000.00,
+        "total_earned": 25000.00,
+        "total_withdrawn": 20000.00,
+        "recent_transactions": [
+            {
+                "id": 1,
+                "type": "credit",
+                "amount": 900.00,
+                "description": "Booking #10 completed",
+                "status": "completed",
+                "created_at": "2025-01-15T14:00:00.000000Z"
+            }
+        ],
+        "bank_accounts": [
+            {
+                "id": 1,
+                "bank_name": "HDFC Bank",
+                "account_number": "XXXX1234",
+                "account_holder_name": "John Doe",
+                "ifsc_code": "HDFC0001234",
+                "is_primary": true
+            }
+        ],
+        "pending_withdrawals": []
+    }
+}
+
+--------------------------------------------------------------------------------
+10.2 GET WALLET BALANCE
+--------------------------------------------------------------------------------
+URL: GET /wallet/balance
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "balance": 5000.00,
+        "pending_balance": 1000.00
+    }
+}
+
+--------------------------------------------------------------------------------
+10.3 GET TRANSACTIONS
+--------------------------------------------------------------------------------
+URL: GET /wallet/transactions
+Auth: Required
+
+Query Parameters:
+- type: credit/debit
+- from_date: 2025-01-01
+- to_date: 2025-01-31
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "transactions": [
+            {
+                "id": 1,
+                "type": "credit",
+                "amount": 900.00,
+                "description": "Booking #10 completed",
+                "status": "completed",
+                "reference_id": "booking_10",
+                "created_at": "2025-01-15T14:00:00.000000Z"
+            }
+        ],
+        "pagination": {
+            "current_page": 1,
+            "last_page": 5,
+            "per_page": 20,
+            "total": 100
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+10.4 ADD BANK ACCOUNT
+--------------------------------------------------------------------------------
+URL: POST /wallet/add-bank-account
+Auth: Required
+
+Body (Bank Account):
+{
+    "payment_method_type": "bank",
+    "account_holder_name": "John Doe",
+    "account_number": "1234567890123456",
+    "confirm_account_number": "1234567890123456",
+    "ifsc_code": "HDFC0001234",
+    "account_type": "savings"
+}
+
+Body (UPI):
+{
+    "payment_method_type": "upi",
+    "upi_id": "john@upi"
+}
+
+Response (201):
+{
+    "success": true,
+    "message": "Bank account added successfully",
+    "data": {
+        "account": {
+            "id": 1,
+            "bank_name": "HDFC Bank",
+            "account_number": "XXXX3456",
+            "account_holder_name": "John Doe",
+            "ifsc_code": "HDFC0001234",
+            "account_type": "savings",
+            "is_primary": true,
+            "is_verified": true
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+10.5 UPDATE BANK ACCOUNT
+--------------------------------------------------------------------------------
+URL: PUT /wallet/bank-account/{id}
+Auth: Required
+
+Body:
+{
+    "account_holder_name": "John Doe Updated",
+    "is_primary": true
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Bank account updated successfully"
+}
+
+--------------------------------------------------------------------------------
+10.6 DELETE BANK ACCOUNT
+--------------------------------------------------------------------------------
+URL: DELETE /wallet/bank-account/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Bank account deleted successfully"
+}
+
+--------------------------------------------------------------------------------
+10.7 REQUEST WITHDRAWAL
+--------------------------------------------------------------------------------
+URL: POST /wallet/request-withdrawal
+Auth: Required
+
+Body:
+{
+    "amount": 2000.00,
+    "bank_account_id": 1
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Withdrawal request submitted successfully",
+    "data": {
+        "withdrawal": {
+            "id": 1,
+            "amount": 2000.00,
+            "status": "pending",
+            "bank_account": {
+                "bank_name": "HDFC Bank",
+                "account_number": "XXXX3456"
+            },
+            "created_at": "2025-01-15T14:00:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+10.8 CANCEL WITHDRAWAL
+--------------------------------------------------------------------------------
+URL: POST /wallet/cancel-withdrawal/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Withdrawal request cancelled successfully"
+}
+
+--------------------------------------------------------------------------------
+10.9 CHECK AFFORDABILITY
+--------------------------------------------------------------------------------
+URL: POST /wallet/check-affordability
+Auth: Required
+
+Body:
+{
+    "amount": 1050.00
+}
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "can_afford": true,
+        "wallet_balance": 5000.00,
+        "required_amount": 1050.00,
+        "shortfall": 0.00
+    }
+}
+
+================================================================================
+                    11. CHAT ROUTES (10 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+11.1 GET ALL CHATS
+--------------------------------------------------------------------------------
+URL: GET /chat
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "chats": [
+            {
+                "id": 1,
+                "booking_id": 10,
+                "other_user": {
+                    "id": 2,
+                    "name": "Jane Doe",
+                    "profile_picture_url": "..."
+                },
+                "last_message": {
+                    "content": "See you tomorrow!",
+                    "sent_at": "2025-01-14T18:00:00.000000Z",
+                    "is_mine": false
+                },
+                "unread_count": 2,
+                "updated_at": "2025-01-14T18:00:00.000000Z"
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+11.2 GET UNREAD COUNT
+--------------------------------------------------------------------------------
+URL: GET /chat/unread-count
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "unread_count": 5
+    }
+}
+
+--------------------------------------------------------------------------------
+11.3 GET BLOCKED USERS
+--------------------------------------------------------------------------------
+URL: GET /chat/blocked-users
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "blocked_users": [
+            {
+                "id": 5,
+                "name": "Blocked User",
+                "profile_picture_url": "...",
+                "blocked_at": "2025-01-10T10:00:00.000000Z"
+            }
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+11.4 START CHAT
+--------------------------------------------------------------------------------
+URL: POST /chat/start/{userId}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "chat_id": 5,
+        "booking_id": 15,
+        "other_user": {
+            "id": 3,
+            "name": "New Chat User"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+11.5 GET MESSAGES
+--------------------------------------------------------------------------------
+URL: GET /chat/booking/{bookingId}/messages
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 50
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "messages": [
+            {
+                "id": 1,
+                "content": "Hello!",
+                "sender_id": 1,
+                "is_mine": true,
+                "is_read": true,
+                "created_at": "2025-01-14T10:00:00.000000Z"
+            },
+            {
+                "id": 2,
+                "content": "Hi there!",
+                "sender_id": 2,
+                "is_mine": false,
+                "is_read": true,
+                "created_at": "2025-01-14T10:01:00.000000Z"
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+11.6 SEND MESSAGE
+--------------------------------------------------------------------------------
+URL: POST /chat/booking/{bookingId}/send
+Auth: Required
+
+Body:
+{
+    "message": "Hello, looking forward to our meeting!"
+}
+
+Response (201):
+{
+    "success": true,
+    "message": "Message sent",
+    "data": {
+        "message": {
+            "id": 10,
+            "content": "Hello, looking forward to our meeting!",
+            "sender_id": 1,
+            "is_mine": true,
+            "is_read": false,
+            "created_at": "2025-01-14T18:30:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+11.7 MARK AS READ
+--------------------------------------------------------------------------------
+URL: POST /chat/booking/{bookingId}/mark-read
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Messages marked as read"
+}
+
+--------------------------------------------------------------------------------
+11.8 DELETE MESSAGE
+--------------------------------------------------------------------------------
+URL: DELETE /chat/message/{messageId}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Message deleted"
+}
+
+--------------------------------------------------------------------------------
+11.9 BLOCK USER
+--------------------------------------------------------------------------------
+URL: POST /chat/block/{userId}
+Auth: Required
+
+Body:
+{
+    "reason": "Spam messages"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "User blocked successfully"
+}
+
+--------------------------------------------------------------------------------
+11.10 UNBLOCK USER
+--------------------------------------------------------------------------------
+URL: DELETE /chat/block/{userId}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "User unblocked successfully"
+}
+
+================================================================================
+                    12. NOTIFICATION ROUTES (10 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+12.1 GET NOTIFICATIONS
+--------------------------------------------------------------------------------
+URL: GET /notifications
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "notifications": [
+            {
+                "id": 1,
+                "type": "booking_confirmed",
+                "title": "Booking Confirmed",
+                "message": "Your booking with Jane Doe has been confirmed",
+                "data": {
+                    "booking_id": 10
+                },
+                "is_read": false,
+                "created_at": "2025-01-14T10:00:00.000000Z"
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+12.2 GET UNREAD COUNT
+--------------------------------------------------------------------------------
+URL: GET /notifications/unread-count
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "unread_count": 5
+    }
+}
+
+--------------------------------------------------------------------------------
+12.3 MARK ALL AS READ
+--------------------------------------------------------------------------------
+URL: POST /notifications/mark-all-read
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "All notifications marked as read"
+}
+
+--------------------------------------------------------------------------------
+12.4 CLEAR ALL NOTIFICATIONS
+--------------------------------------------------------------------------------
+URL: DELETE /notifications/clear-all
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "All notifications cleared"
+}
+
+--------------------------------------------------------------------------------
+12.5 GET NOTIFICATION PREFERENCES
+--------------------------------------------------------------------------------
+URL: GET /notifications/preferences
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "preferences": {
+            "booking_notifications": true,
+            "chat_notifications": true,
+            "payment_notifications": true,
+            "promotional_notifications": false,
+            "email_notifications": true,
+            "push_notifications": true
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+12.6 UPDATE NOTIFICATION PREFERENCES
+--------------------------------------------------------------------------------
+URL: PUT /notifications/preferences
+Auth: Required
+
+Body:
+{
+    "booking_notifications": true,
+    "chat_notifications": true,
+    "payment_notifications": true,
+    "promotional_notifications": false,
+    "email_notifications": false,
+    "push_notifications": true
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Preferences updated successfully"
+}
+
+--------------------------------------------------------------------------------
+12.7 REGISTER FCM TOKEN
+--------------------------------------------------------------------------------
+URL: POST /notifications/fcm-token
+Auth: Required
+
+Body:
+{
+    "fcm_token": "dGhpcyBpcyBhIHNhbXBsZSBGQ00gdG9rZW4...",
+    "device_type": "android"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "FCM token registered successfully"
+}
+
+--------------------------------------------------------------------------------
+12.8 REMOVE FCM TOKEN
+--------------------------------------------------------------------------------
+URL: DELETE /notifications/fcm-token
+Auth: Required
+
+Body:
+{
+    "fcm_token": "dGhpcyBpcyBhIHNhbXBsZSBGQ00gdG9rZW4..."
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "FCM token removed successfully"
+}
+
+--------------------------------------------------------------------------------
+12.9 MARK NOTIFICATION AS READ
+--------------------------------------------------------------------------------
+URL: POST /notifications/{id}/mark-read
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Notification marked as read"
+}
+
+--------------------------------------------------------------------------------
+12.10 DELETE NOTIFICATION
+--------------------------------------------------------------------------------
+URL: DELETE /notifications/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Notification deleted"
+}
+
+================================================================================
+                    13. SUBSCRIPTION ROUTES (5 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+13.1 GET SUBSCRIPTION STATUS
+--------------------------------------------------------------------------------
+URL: GET /subscription/status
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "has_subscription": true,
+        "subscription": {
+            "id": 1,
+            "plan": {
+                "id": 2,
+                "name": "Premium",
+                "price": 799.00,
+                "duration_days": 90
+            },
+            "started_at": "2025-01-01T00:00:00.000000Z",
+            "expires_at": "2025-04-01T00:00:00.000000Z",
+            "is_active": true,
+            "days_remaining": 84
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+13.2 PURCHASE SUBSCRIPTION
+--------------------------------------------------------------------------------
+URL: POST /subscription/purchase
+Auth: Required
+
+Body:
+{
+    "plan_id": 2
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Payment initiated",
+    "data": {
+        "order_id": "sub_order_abc123",
+        "payment_session_id": "session_xyz789",
+        "amount": 799.00,
+        "currency": "INR",
+        "cashfree_order": {
+            "order_id": "sub_order_abc123",
+            "payment_session_id": "session_xyz789",
+            "order_status": "ACTIVE"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+13.3 VERIFY PAYMENT
+--------------------------------------------------------------------------------
+URL: POST /subscription/verify-payment
+Auth: Required
+
+Body:
+{
+    "order_id": "sub_order_abc123"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Payment verified successfully",
+    "data": {
+        "subscription": {
+            "id": 1,
+            "plan_name": "Premium",
+            "expires_at": "2025-04-01T00:00:00.000000Z",
+            "is_active": true
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+13.4 CANCEL SUBSCRIPTION
+--------------------------------------------------------------------------------
+URL: POST /subscription/cancel
+Auth: Required
+
+Body:
+{
+    "reason": "No longer needed"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Subscription cancelled. You can continue using premium features until the expiry date."
+}
+
+--------------------------------------------------------------------------------
+13.5 GET SUBSCRIPTION HISTORY
+--------------------------------------------------------------------------------
+URL: GET /subscription/history
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 10
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "history": [
+            {
+                "id": 1,
+                "plan_name": "Premium",
+                "amount": 799.00,
+                "started_at": "2025-01-01T00:00:00.000000Z",
+                "expires_at": "2025-04-01T00:00:00.000000Z",
+                "status": "active",
+                "payment_method": "cashfree"
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+================================================================================
+                    14. COUPLE ACTIVITY ROUTES (10 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+14.1 GET REQUESTS
+--------------------------------------------------------------------------------
+URL: GET /couple-activity/requests
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "sent_requests": [
+            {
+                "id": 1,
+                "to_user": {
+                    "id": 3,
+                    "name": "Partner Name",
+                    "profile_picture_url": "..."
+                },
+                "status": "pending",
+                "created_at": "2025-01-10T10:00:00.000000Z"
+            }
+        ],
+        "received_requests": [
+            {
+                "id": 2,
+                "from_user": {
+                    "id": 4,
+                    "name": "Another User",
+                    "profile_picture_url": "..."
+                },
+                "status": "pending",
+                "created_at": "2025-01-11T10:00:00.000000Z"
+            }
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+14.2 SEND REQUEST
+--------------------------------------------------------------------------------
+URL: POST /couple-activity/request
+Auth: Required
+
+Body:
+{
+    "user_id": 3,
+    "message": "Would you like to be my partner?"
+}
+
+Response (201):
+{
+    "success": true,
+    "message": "Request sent successfully",
+    "data": {
+        "request": {
+            "id": 5,
+            "to_user": {
+                "id": 3,
+                "name": "Partner Name"
+            },
+            "status": "pending",
+            "created_at": "2025-01-15T10:00:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+14.3 ACCEPT REQUEST
+--------------------------------------------------------------------------------
+URL: POST /couple-activity/request/{id}/accept
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Request accepted. You are now partners!",
+    "data": {
+        "partnership": {
+            "id": 1,
+            "partner": {
+                "id": 4,
+                "name": "Partner Name"
+            },
+            "started_at": "2025-01-15T10:00:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+14.4 REJECT REQUEST
+--------------------------------------------------------------------------------
+URL: POST /couple-activity/request/{id}/reject
+Auth: Required
+
+Body:
+{
+    "reason": "Not interested at this time"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Request rejected"
+}
+
+--------------------------------------------------------------------------------
+14.5 CANCEL REQUEST
+--------------------------------------------------------------------------------
+URL: DELETE /couple-activity/request/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Request cancelled"
+}
+
+--------------------------------------------------------------------------------
+14.6 GET PARTNERSHIP
+--------------------------------------------------------------------------------
+URL: GET /couple-activity/partnership
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "has_partner": true,
+        "partnership": {
+            "id": 1,
+            "partner": {
+                "id": 3,
+                "name": "Partner Name",
+                "profile_picture_url": "...",
+                "gender": "female"
+            },
+            "started_at": "2025-01-15T10:00:00.000000Z",
+            "duration_days": 30
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+14.7 END PARTNERSHIP
+--------------------------------------------------------------------------------
+URL: DELETE /couple-activity/partnership
+Auth: Required
+
+Body:
+{
+    "reason": "Mutual decision"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Partnership ended"
+}
+
+--------------------------------------------------------------------------------
+14.8 BLOCK USER
+--------------------------------------------------------------------------------
+URL: POST /couple-activity/block/{userId}
+Auth: Required
+
+Body:
+{
+    "reason": "Harassment"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "User blocked from couple activity"
+}
+
+--------------------------------------------------------------------------------
+14.9 UNBLOCK USER
+--------------------------------------------------------------------------------
+URL: DELETE /couple-activity/block/{userId}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "User unblocked"
+}
+
+--------------------------------------------------------------------------------
+14.10 GET HISTORY
+--------------------------------------------------------------------------------
+URL: GET /couple-activity/history
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 10
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "history": [
+            {
+                "id": 1,
+                "partner": {
+                    "id": 5,
+                    "name": "Previous Partner"
+                },
+                "started_at": "2024-10-01T00:00:00.000000Z",
+                "ended_at": "2024-12-31T00:00:00.000000Z",
+                "duration_days": 91
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+================================================================================
+                    15. SUGAR PARTNER ROUTES (11 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+15.1 GET EXCHANGES
+--------------------------------------------------------------------------------
+URL: GET /sugar-partner/exchanges
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 20
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "exchanges": [
+            {
+                "id": 1,
+                "other_user": {
+                    "id": 10,
+                    "name": "Sugar Partner",
+                    "profile_picture_url": "...",
+                    "age": 35
+                },
+                "status": "pending",
+                "created_at": "2025-01-10T10:00:00.000000Z",
+                "profiles_viewed": false
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+15.2 GET EXCHANGE DETAILS
+--------------------------------------------------------------------------------
+URL: GET /sugar-partner/exchange/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "exchange": {
+            "id": 1,
+            "other_user": {
+                "id": 10,
+                "name": "Sugar Partner",
+                "profile_picture_url": "...",
+                "age": 35,
+                "gender": "male",
+                "interests": ["travel", "dining"],
+                "expectation": "Looking for companionship"
+            },
+            "status": "pending",
+            "your_response": null,
+            "their_response": null,
+            "created_at": "2025-01-10T10:00:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+15.3 MARK PROFILES VIEWED
+--------------------------------------------------------------------------------
+URL: POST /sugar-partner/exchange/{id}/view-profiles
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Profiles marked as viewed"
+}
+
+--------------------------------------------------------------------------------
+15.4 RESPOND TO EXCHANGE
+--------------------------------------------------------------------------------
+URL: POST /sugar-partner/exchange/{id}/respond
+Auth: Required
+
+Body:
+{
+    "response": "accept"
+}
+
+Valid responses: "accept", "soft_reject", "hard_reject"
+
+Response (200 - Accept):
+{
+    "success": true,
+    "message": "You have accepted this exchange",
+    "data": {
+        "exchange_status": "accepted",
+        "match_status": "waiting_for_other"
+    }
+}
+
+Response (200 - Both Accepted):
+{
+    "success": true,
+    "message": "It's a match! You can now proceed with payment.",
+    "data": {
+        "exchange_status": "matched",
+        "payment_required": true,
+        "payment_amount": 5000.00
+    }
+}
+
+--------------------------------------------------------------------------------
+15.5 GET PAYMENT DETAILS
+--------------------------------------------------------------------------------
+URL: GET /sugar-partner/exchange/{id}/payment
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "exchange_id": 1,
+        "amount": 5000.00,
+        "platform_fee": 500.00,
+        "total_amount": 5500.00,
+        "payment_status": "pending",
+        "other_user": {
+            "id": 10,
+            "name": "Sugar Partner"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+15.6 GET PENDING COUNT
+--------------------------------------------------------------------------------
+URL: GET /sugar-partner/pending-count
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "pending_count": 3
+    }
+}
+
+--------------------------------------------------------------------------------
+15.7 GET HISTORY
+--------------------------------------------------------------------------------
+URL: GET /sugar-partner/history
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 10
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "history": [
+            {
+                "id": 5,
+                "other_user": {
+                    "id": 8,
+                    "name": "Previous Match"
+                },
+                "status": "completed",
+                "matched_at": "2024-12-01T00:00:00.000000Z",
+                "completed_at": "2024-12-15T00:00:00.000000Z"
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+15.8 GET HARD REJECTS
+--------------------------------------------------------------------------------
+URL: GET /sugar-partner/hard-rejects
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "hard_rejects": [
+            {
+                "id": 15,
+                "name": "Rejected User",
+                "profile_picture_url": "...",
+                "rejected_at": "2025-01-05T10:00:00.000000Z"
+            }
+        ]
+    }
+}
+
+--------------------------------------------------------------------------------
+15.9 HARD REJECT USER
+--------------------------------------------------------------------------------
+URL: POST /sugar-partner/hard-reject/{userId}
+Auth: Required
+
+Body:
+{
+    "reason": "Not compatible"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "User hard rejected. They will not be shown to you again."
+}
+
+--------------------------------------------------------------------------------
+15.10 REMOVE HARD REJECT
+--------------------------------------------------------------------------------
+URL: DELETE /sugar-partner/hard-reject/{userId}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Hard reject removed"
+}
+
+--------------------------------------------------------------------------------
+15.11 GET PAYMENTS
+--------------------------------------------------------------------------------
+URL: GET /sugar-partner/payments
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 10
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "payments": [
+            {
+                "id": 1,
+                "exchange_id": 5,
+                "amount": 5500.00,
+                "status": "completed",
+                "paid_at": "2024-12-01T10:00:00.000000Z"
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+================================================================================
+                    16. MEETING EVENTS ROUTES (6 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+16.1 GET MEETING EVENTS
+--------------------------------------------------------------------------------
+URL: GET /events
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 20
+- status: upcoming/past
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "events": [
+            {
+                "id": 1,
+                "title": "Speed Dating Event",
+                "description": "Meet new people in a fun environment",
+                "event_date": "2025-01-20T18:00:00.000000Z",
+                "location": "Mumbai",
+                "venue": "Hotel Grand",
+                "entry_fee": 500.00,
+                "max_participants": 50,
+                "current_participants": 35,
+                "image_url": "https://domain.com/storage/events/event1.jpg",
+                "is_joined": false
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+16.2 GET EVENT DETAILS
+--------------------------------------------------------------------------------
+URL: GET /events/{id}
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "event": {
+            "id": 1,
+            "title": "Speed Dating Event",
+            "description": "Meet new people in a fun environment",
+            "event_date": "2025-01-20T18:00:00.000000Z",
+            "location": "Mumbai",
+            "venue": "Hotel Grand",
+            "address": "123 Main Street, Mumbai",
+            "entry_fee": 500.00,
+            "max_participants": 50,
+            "current_participants": 35,
+            "image_url": "https://domain.com/storage/events/event1.jpg",
+            "is_joined": false,
+            "organizer": {
+                "name": "SettingWala Events",
+                "contact": "+91 9876543210"
+            },
+            "rules": ["Be respectful", "Arrive on time"]
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+16.3 JOIN EVENT
+--------------------------------------------------------------------------------
+URL: POST /events/{id}/join
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Successfully joined the event. Please proceed with payment.",
+    "data": {
+        "event_payment_id": 10,
+        "amount": 500.00
+    }
+}
+
+--------------------------------------------------------------------------------
+16.4 CREATE PAYMENT ORDER
+--------------------------------------------------------------------------------
+URL: POST /events/payment/{eventPaymentId}/create-order
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "message": "Payment order created",
+    "data": {
+        "order_id": "event_order_abc123",
+        "payment_session_id": "session_xyz789",
+        "amount": 500.00,
+        "currency": "INR",
+        "cashfree_order": {
+            "order_id": "event_order_abc123",
+            "payment_session_id": "session_xyz789",
+            "order_status": "ACTIVE"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+16.5 VERIFY PAYMENT
+--------------------------------------------------------------------------------
+URL: POST /events/payment/{eventPaymentId}/verify
+Auth: Required
+
+Body:
+{
+    "order_id": "event_order_abc123"
+}
+
+Response (200):
+{
+    "success": true,
+    "message": "Payment verified successfully",
+    "data": {
+        "event_payment": {
+            "id": 10,
+            "status": "paid",
+            "paid_at": "2025-01-15T10:00:00.000000Z"
+        },
+        "event": {
+            "id": 1,
+            "title": "Speed Dating Event"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+16.6 GET PAYMENT STATUS
+--------------------------------------------------------------------------------
+URL: GET /events/payment/{eventPaymentId}/status
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "event_payment_id": 10,
+        "status": "paid",
+        "amount": 500.00,
+        "paid_at": "2025-01-15T10:00:00.000000Z",
+        "event": {
+            "id": 1,
+            "title": "Speed Dating Event",
+            "event_date": "2025-01-20T18:00:00.000000Z"
+        }
+    }
+}
+
+================================================================================
+                    17. DISPUTE ROUTES (3 APIs)
+================================================================================
+
+--------------------------------------------------------------------------------
+17.1 GET USER DISPUTES
+--------------------------------------------------------------------------------
+URL: GET /disputes
+Auth: Required
+
+Query Parameters:
+- page: 1
+- per_page: 20
+- status: open/resolved/closed
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "disputes": [
+            {
+                "id": 1,
+                "booking_id": 10,
+                "reason": "Service not as described",
+                "description": "The provider did not show up",
+                "status": "open",
+                "created_at": "2025-01-14T10:00:00.000000Z",
+                "other_user": {
+                    "id": 2,
+                    "name": "Jane Doe"
+                }
+            }
+        ],
+        "pagination": {...}
+    }
+}
+
+--------------------------------------------------------------------------------
+17.2 RAISE DISPUTE
+--------------------------------------------------------------------------------
+URL: POST /disputes/raise
+Auth: Required
+
+Body:
+{
+    "booking_id": 10,
+    "reason": "service_not_provided",
+    "description": "The provider did not show up for the scheduled meeting."
+}
+
+Valid reasons: "service_not_provided", "quality_issue", "payment_issue", "misconduct", "other"
+
+Response (201):
+{
+    "success": true,
+    "message": "Dispute raised successfully. Our team will review it shortly.",
+    "data": {
+        "dispute": {
+            "id": 5,
+            "booking_id": 10,
+            "reason": "service_not_provided",
+            "status": "open",
+            "created_at": "2025-01-15T10:00:00.000000Z"
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+17.3 GET DISPUTE DETAILS
+--------------------------------------------------------------------------------
+URL: GET /disputes/{bookingId}/details
+Auth: Required
+
+Body: None
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "dispute": {
+            "id": 5,
+            "booking_id": 10,
+            "reason": "service_not_provided",
+            "description": "The provider did not show up for the scheduled meeting.",
+            "status": "open",
+            "admin_notes": null,
+            "resolution": null,
+            "refund_amount": null,
+            "created_at": "2025-01-15T10:00:00.000000Z",
+            "resolved_at": null,
+            "booking": {
+                "id": 10,
+                "booking_date": "2025-01-14T10:00:00.000000Z",
+                "total_amount": 1050.00
+            },
+            "other_user": {
+                "id": 2,
+                "name": "Jane Doe"
+            }
+        }
+    }
+}
+
+================================================================================
+                    18. CALENDAR ROUTES (1 API)
+================================================================================
+
+--------------------------------------------------------------------------------
+18.1 GET BOOKINGS FOR DATE
+--------------------------------------------------------------------------------
+URL: GET /calendar/bookings/{date}
+Auth: Required
+
+URL Parameter:
+- date: 2025-01-15 (format: Y-m-d)
+
+Response (200):
+{
+    "success": true,
+    "data": {
+        "date": "2025-01-15",
+        "bookings": [
+            {
+                "id": 10,
+                "start_time": "10:00",
+                "end_time": "12:00",
+                "duration_hours": 2,
+                "status": "confirmed",
+                "other_user": {
+                    "id": 2,
+                    "name": "Jane Doe",
+                    "profile_picture_url": "..."
+                },
+                "is_client": true
+            },
+            {
+                "id": 11,
+                "start_time": "14:00",
+                "end_time": "16:00",
+                "duration_hours": 2,
+                "status": "pending",
+                "other_user": {
+                    "id": 5,
+                    "name": "Another User",
+                    "profile_picture_url": "..."
+                },
+                "is_client": false
+            }
+        ]
+    }
+}
+
+================================================================================
+                    COMMON ERROR RESPONSES
+================================================================================
+
+401 Unauthorized:
+{
+    "success": false,
+    "message": "Unauthenticated."
+}
+
+403 Forbidden:
+{
+    "success": false,
+    "message": "You do not have permission to perform this action."
+}
+
+404 Not Found:
+{
+    "success": false,
+    "message": "Resource not found."
+}
+
+422 Validation Error:
+{
+    "success": false,
+    "message": "Validation failed",
+    "errors": {
+        "field_name": ["Error message for this field"]
+    }
+}
+
+500 Server Error:
+{
+    "success": false,
+    "message": "An error occurred. Please try again later."
+}
+
+================================================================================
+                    API SUMMARY BY CATEGORY
+================================================================================
+
+Category                          | Count
+----------------------------------|-------
+1. Authentication                 | 10
+2. Public Data                    | 2
+3. Profile                        | 8
+4. Gallery                        | 4
+5. User Discovery                 | 5
+6. Bookings                       | 14
+7. Provider Booking Management    | 6
+8. Meeting Verification           | 3
+9. Rating & Reviews               | 3
+10. Wallet                        | 9
+11. Chat                          | 10
+12. Notifications                 | 10
+13. Subscription                  | 5
+14. Couple Activity               | 10
+15. Sugar Partner                 | 11
+16. Meeting Events                | 6
+17. Disputes                      | 3
+18. Calendar                      | 1
+----------------------------------|-------
+TOTAL                             | 104
+
+================================================================================
+                    END OF DOCUMENTATION
+================================================================================
+
+Generated on: 2025-01-07
+Version: 1.0

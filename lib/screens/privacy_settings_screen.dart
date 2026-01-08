@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../Service/profile_service.dart';
+import '../Service/auth_service.dart';
+import '../routes/app_routes.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
@@ -13,6 +15,7 @@ class PrivacySettingsScreen extends StatefulWidget {
 
 class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   bool _isLoading = true;
+  bool _isDeletingAccount = false;
 
   bool _isPublicProfile = false;
   bool _showContactNumber = false;
@@ -533,6 +536,19 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                     ),
 
                   SizedBox(height: sectionSpacing),
+
+                  // Delete Account Section - Danger Zone
+                  _buildDeleteAccountSection(
+                    colors: colors,
+                    isDark: isDark,
+                    primaryColor: primaryColor,
+                    cardRadius: cardRadius,
+                    sectionHeaderFontSize: sectionHeaderFontSize,
+                    titleFontSize: titleFontSize,
+                    subtitleFontSize: subtitleFontSize,
+                  ),
+
+                  SizedBox(height: sectionSpacing),
                 ],
               ),
             ),
@@ -540,6 +556,316 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildDeleteAccountSection({
+    required dynamic colors,
+    required bool isDark,
+    required Color primaryColor,
+    required double cardRadius,
+    required double sectionHeaderFontSize,
+    required double titleFontSize,
+    required double subtitleFontSize,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(cardRadius),
+        border: Border.all(
+          color: AppColors.error.withOpacity(0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black26 : Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppColors.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Danger Zone',
+                  style: TextStyle(
+                    fontSize: sectionHeaderFontSize - 2,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(color: AppColors.error.withOpacity(0.2), height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Delete Account',
+                  style: TextStyle(
+                    fontSize: titleFontSize,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Once you delete your account, there is no going back. All your data, matches, chats, and bookings will be permanently deleted.',
+                  style: TextStyle(
+                    fontSize: subtitleFontSize,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isDeletingAccount ? null : () => _showDeleteAccountDialog(),
+                    icon: _isDeletingAccount
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : Icon(Icons.delete_forever, size: 18),
+                    label: Text(_isDeletingAccount ? 'Deleting...' : 'Delete My Account'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDeleteAccountDialog() async {
+    final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
+    
+    final TextEditingController passwordController = TextEditingController();
+    String? selectedReason;
+    final TextEditingController otherReasonController = TextEditingController();
+    
+    final reasons = [
+      'Found a partner',
+      'Privacy concerns',
+      'Not using the app anymore',
+      'Too many notifications',
+      'Found a better app',
+      'Other',
+    ];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: colors.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 28),
+              const SizedBox(width: 12),
+              Text(
+                'Delete Account',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This action cannot be undone. Please enter your password and tell us why you\'re leaving.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Password field
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    hintText: 'Enter your password',
+                    prefixIcon: Icon(Icons.lock_outline, color: primaryColor),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                    ),
+                  ),
+                  style: TextStyle(color: colors.textPrimary),
+                ),
+                const SizedBox(height: 16),
+                
+                // Reason dropdown
+                DropdownButtonFormField<String>(
+                  value: selectedReason,
+                  decoration: InputDecoration(
+                    labelText: 'Reason for leaving',
+                    prefixIcon: Icon(Icons.help_outline, color: primaryColor),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                    ),
+                  ),
+                  dropdownColor: colors.card,
+                  style: TextStyle(color: colors.textPrimary),
+                  items: reasons.map((reason) => DropdownMenuItem(
+                    value: reason,
+                    child: Text(reason),
+                  )).toList(),
+                  onChanged: (value) {
+                    setDialogState(() => selectedReason = value);
+                  },
+                ),
+                
+                // Other reason text field
+                if (selectedReason == 'Other') ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: otherReasonController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: 'Please specify',
+                      hintText: 'Tell us more...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: primaryColor, width: 2),
+                      ),
+                    ),
+                    style: TextStyle(color: colors.textPrimary),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (passwordController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please enter your password'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Delete Account'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _deleteAccount(
+        password: passwordController.text,
+        reason: selectedReason == 'Other' 
+            ? otherReasonController.text 
+            : selectedReason,
+      );
+    }
+    
+    passwordController.dispose();
+    otherReasonController.dispose();
+  }
+
+  Future<void> _deleteAccount({
+    required String password,
+    String? reason,
+  }) async {
+    setState(() => _isDeletingAccount = true);
+
+    try {
+      final response = await AuthService.deleteAccount(
+        password: password,
+        reason: reason,
+      );
+
+      if (!mounted) return;
+
+      if (response.success) {
+        // Clear all stored data
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+
+        _showSuccessSnackBar('Account deleted successfully');
+        
+        // Navigate to login screen
+        AppRoutes.navigateAndClearStack(context, AppRoutes.login);
+      } else {
+        _showErrorSnackBar(response.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Failed to delete account. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDeletingAccount = false);
+      }
+    }
   }
 
   Widget _buildHeaderSection({

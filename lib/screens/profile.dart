@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
+import '../utils/auth_helper.dart';
 import '../Service/profile_service.dart';
 import '../Service/completion_status_service.dart';
 import '../Service/wallet_service.dart';
@@ -42,14 +43,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoadingProfile = true;
   bool _isLoadingCompletion = true;
+  
+  // User validation flag
+  bool _isValidating = true;
 
   @override
   void initState() {
     super.initState();
-    _loadPrivacySettings();
-    _loadProfile();
-    _loadCompletionStatus();
-    _loadWalletData();
+    _validateAndLoadData();
+  }
+  
+  // Validate user first, then load data if valid
+  Future<void> _validateAndLoadData() async {
+    final isValid = await AuthHelper.validateUserOrRedirect(context);
+    
+    if (!mounted) return;
+    
+    if (isValid) {
+      setState(() {
+        _isValidating = false;
+      });
+      // Load data only after validation passes
+      _loadPrivacySettings();
+      _loadProfile();
+      _loadCompletionStatus();
+      _loadWalletData();
+    }
+    // If not valid, AuthHelper already redirected to login
   }
 
   Future<void> _loadWalletData() async {
@@ -275,6 +295,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final bodyPadding = isSmallScreen ? 12.0 : (isTablet ? 24.0 : 16.0);
     final sectionSpacing = isSmallScreen ? 18.0 : (isTablet ? 32.0 : 24.0);
+
+    // Show loading while validating user
+    if (_isValidating) {
+      return BaseScreen(
+        title: 'My Profile',
+        showBackButton: true,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+          ),
+        ),
+      );
+    }
 
     return BaseScreen(
       title: 'My Profile',

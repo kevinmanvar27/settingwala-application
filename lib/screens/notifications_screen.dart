@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../routes/app_routes.dart';
+import '../Service/notification_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -11,46 +12,112 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _errorMessage;
+  
+  // Master toggle
   bool _notificationsEnabled = true;
   
+  // API-backed preferences
   bool _pushNotificationsEnabled = true;
   bool _emailNotificationsEnabled = true;
-  bool _inAppNotificationsEnabled = true;
+  bool _bookingNotifications = true;
+  bool _chatNotifications = true;
+  bool _paymentNotifications = true;
+  bool _promotionalNotifications = false;
   
-  final Map<String, bool> _pushNotifications = {
-    'General': true,
-    'Payment': true,
-    'Matches': true,
-    'Activity Partner Exchanges': true,
-    'Booking Appointment': true,
-    'Meeting Reminder': true,
-    'Subscriptions & Account': true,
-  };
-  
-  final Map<String, bool> _emailNotifications = {
-    'General': true,
-    'Payment': true,
-    'Matches': true,
-    'Activity Partner Exchanges': true,
-    'Booking Appointment': true,
-    'Meeting Reminder': true,
-    'Subscriptions & Account': true,
-  };
-  
-  final Map<String, bool> _inAppNotifications = {
-    'General': true,
-    'Payment': true,
-    'Matches': true,
-    'Activity Partner Exchanges': true,
-    'Booking Appointment': true,
-    'Meeting Reminder': true,
-    'Subscriptions & Account': true,
-  };
-  
+  // Quiet hours (local only - not in API)
   TimeOfDay _startTime = const TimeOfDay(hour: 22, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 7, minute: 0);
   String _timeZone = 'Asia/Kolkata (GMT+5:30)';
   bool _quietHoursEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final response = await NotificationService.getPreferences();
+    
+    if (!mounted) return;
+
+    if (response != null && response.success) {
+      setState(() {
+        _pushNotificationsEnabled = response.preferences.pushEnabled;
+        _emailNotificationsEnabled = response.preferences.emailEnabled;
+        _bookingNotifications = response.preferences.bookingNotifications;
+        _chatNotifications = response.preferences.chatNotifications;
+        _paymentNotifications = response.preferences.paymentNotifications;
+        _promotionalNotifications = response.preferences.promotionalNotifications;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _errorMessage = 'Failed to load preferences';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _savePreferences() async {
+    setState(() {
+      _isSaving = true;
+    });
+
+    final response = await NotificationService.updatePreferences(
+      pushEnabled: _pushNotificationsEnabled,
+      emailEnabled: _emailNotificationsEnabled,
+      bookingNotifications: _bookingNotifications,
+      chatNotifications: _chatNotifications,
+      paymentNotifications: _paymentNotifications,
+      promotionalNotifications: _promotionalNotifications,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSaving = false;
+    });
+
+    if (response != null && response.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Notification settings saved!',
+            style: TextStyle(color: AppColors.white),
+          ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      AppRoutes.navigateAndClearStack(context, AppRoutes.homePage);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Failed to save settings. Please try again.',
+            style: TextStyle(color: AppColors.white),
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +152,44 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     
     final maxContentWidth = isDesktop ? 800.0 : double.infinity;
     
+    // Show loading state
+    if (_isLoading) {
+      return BaseScreen(
+        title: 'Notifications',
+        showBackButton: true,
+        body: Center(
+          child: CircularProgressIndicator(color: primaryColor),
+        ),
+      );
+    }
+
+    // Show error state
+    if (_errorMessage != null) {
+      return BaseScreen(
+        title: 'Notifications',
+        showBackButton: true,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: colors.textSecondary, fontSize: titleFontSize),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadPreferences,
+                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return BaseScreen(
       title: 'Notifications',
       showBackButton: true,
@@ -111,6 +216,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 SizedBox(height: sectionSpacing),
                 
                 if (_notificationsEnabled) ...[
+                  // Push Notifications Toggle
                   _buildCategoryToggle(
                     title: 'Push Notifications',
                     isEnabled: _pushNotificationsEnabled,
@@ -125,18 +231,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     titleFontSize: categoryTitleFontSize,
                     horizontalPadding: horizontalPadding,
                   ),
-                  SizedBox(height: itemSpacing),
-                  if (_pushNotificationsEnabled)
-                    _buildNotificationSection(
-                      _pushNotifications, 
-                      colors, 
-                      primaryColor,
-                      cardRadius: cardRadius,
-                      itemFontSize: itemFontSize,
-                      horizontalPadding: horizontalPadding,
-                    ),
                   SizedBox(height: sectionSpacing),
                   
+                  // Email Notifications Toggle
                   _buildCategoryToggle(
                     title: 'Email Notifications',
                     isEnabled: _emailNotificationsEnabled,
@@ -151,42 +248,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     titleFontSize: categoryTitleFontSize,
                     horizontalPadding: horizontalPadding,
                   ),
-                  SizedBox(height: itemSpacing),
-                  if (_emailNotificationsEnabled)
-                    _buildNotificationSection(
-                      _emailNotifications, 
-                      colors, 
-                      primaryColor,
-                      cardRadius: cardRadius,
-                      itemFontSize: itemFontSize,
-                      horizontalPadding: horizontalPadding,
-                    ),
                   SizedBox(height: sectionSpacing),
                   
-                  _buildCategoryToggle(
-                    title: 'In-App Notifications',
-                    isEnabled: _inAppNotificationsEnabled,
-                    onChanged: (value) {
-                      setState(() {
-                        _inAppNotificationsEnabled = value;
-                      });
-                    },
-                    colors: colors,
-                    primaryColor: primaryColor,
-                    cardRadius: cardRadius,
-                    titleFontSize: categoryTitleFontSize,
-                    horizontalPadding: horizontalPadding,
+                  // Notification Categories Section
+                  _buildSectionHeader(
+                    'Notification Categories', 
+                    colors,
+                    fontSize: sectionHeaderFontSize,
                   ),
                   SizedBox(height: itemSpacing),
-                  if (_inAppNotificationsEnabled)
-                    _buildNotificationSection(
-                      _inAppNotifications, 
-                      colors, 
-                      primaryColor,
-                      cardRadius: cardRadius,
-                      itemFontSize: itemFontSize,
-                      horizontalPadding: horizontalPadding,
-                    ),
+                  _buildNotificationCategoriesSection(
+                    colors,
+                    primaryColor,
+                    cardRadius: cardRadius,
+                    itemFontSize: itemFontSize,
+                    horizontalPadding: horizontalPadding,
+                  ),
                   SizedBox(height: sectionSpacing),
                   
                   _buildSectionHeader(
@@ -354,14 +431,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildNotificationSection(
-    Map<String, bool> notificationSettings, 
+  Widget _buildNotificationCategoriesSection(
     AppColorSet colors, 
     Color primaryColor, {
     required double cardRadius,
     required double itemFontSize,
     required double horizontalPadding,
   }) {
+    final categories = [
+      {'title': 'Booking Notifications', 'value': _bookingNotifications, 'icon': Icons.calendar_today},
+      {'title': 'Chat Notifications', 'value': _chatNotifications, 'icon': Icons.chat_bubble_outline},
+      {'title': 'Payment Notifications', 'value': _paymentNotifications, 'icon': Icons.payment},
+      {'title': 'Promotional Notifications', 'value': _promotionalNotifications, 'icon': Icons.local_offer},
+    ];
+
     return Container(
       padding: EdgeInsets.all(horizontalPadding),
       decoration: BoxDecoration(
@@ -377,30 +460,57 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       child: Column(
-        children: notificationSettings.entries.map((entry) {
-          return Padding(
-            padding: EdgeInsets.symmetric(vertical: horizontalPadding * 0.5),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    entry.key,
-                    style: TextStyle(
-                      fontSize: itemFontSize,
-                      color: colors.textPrimary,
+        children: categories.asMap().entries.map((entry) {
+          final index = entry.key;
+          final category = entry.value;
+          return Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: horizontalPadding * 0.5),
+                child: Row(
+                  children: [
+                    Icon(
+                      category['icon'] as IconData,
+                      color: primaryColor,
+                      size: itemFontSize + 4,
                     ),
-                  ),
+                    SizedBox(width: horizontalPadding * 0.5),
+                    Expanded(
+                      child: Text(
+                        category['title'] as String,
+                        style: TextStyle(
+                          fontSize: itemFontSize,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: category['value'] as bool,
+                      onChanged: (value) {
+                        setState(() {
+                          switch (index) {
+                            case 0:
+                              _bookingNotifications = value;
+                              break;
+                            case 1:
+                              _chatNotifications = value;
+                              break;
+                            case 2:
+                              _paymentNotifications = value;
+                              break;
+                            case 3:
+                              _promotionalNotifications = value;
+                              break;
+                          }
+                        });
+                      },
+                    ),
+                  ],
                 ),
-                Switch(
-                  value: entry.value,
-                  onChanged: (value) {
-                    setState(() {
-                      notificationSettings[entry.key] = value;
-                    });
-                  },
-                ),
-              ],
-            ),
+              ),
+              if (index < categories.length - 1)
+                Divider(color: colors.border, height: 1),
+            ],
           );
         }).toList(),
       ),
@@ -728,41 +838,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       width: double.infinity,
       height: buttonHeight,
       child: ElevatedButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Notification settings saved!', 
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: buttonFontSize - 2,
-                ),
-              ),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(cardRadius),
-              ),
-            ),
-          );
-          
-          AppRoutes.navigateAndClearStack(context, AppRoutes.homePage);
-        },
+        onPressed: _isSaving ? null : _savePreferences,
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: isDark ? AppColors.black : AppColors.white,
+          disabledBackgroundColor: primaryColor.withOpacity(0.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(cardRadius),
           ),
           elevation: 0,
         ),
-        child: Text(
-          'Save Changes',
-          style: TextStyle(
-            fontSize: buttonFontSize,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: _isSaving
+            ? SizedBox(
+                height: buttonFontSize + 4,
+                width: buttonFontSize + 4,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: isDark ? AppColors.black : AppColors.white,
+                ),
+              )
+            : Text(
+                'Save Changes',
+                style: TextStyle(
+                  fontSize: buttonFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
     );
   }

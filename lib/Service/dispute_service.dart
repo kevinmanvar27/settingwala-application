@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class DisputeService {
   static Future<String?> _getToken() async {
@@ -18,7 +19,19 @@ class DisputeService {
     return false;
   }
 
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
   static Future<DisputesResponse> getDisputes({int page = 1, String? status}) async {
+    String url = '${ApiConstants.baseUrl}/disputes?page=$page';
+    if (status != null && status.isNotEmpty) {
+      url += '&status=$status';
+    }
     try {
       final token = await _getToken();
 
@@ -29,14 +42,11 @@ class DisputeService {
         );
       }
 
-      String url = '${ApiConstants.baseUrl}/disputes?page=$page';
-      if (status != null && status.isNotEmpty) {
-        url += '&status=$status';
-      }
+      
+      
+      
 
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -53,20 +63,24 @@ class DisputeService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return DisputesResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return DisputesResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get disputes');
         return DisputesResponse(
           success: false,
           message: 'Failed to get disputes.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return DisputesResponse(
         success: false,
@@ -81,6 +95,7 @@ class DisputeService {
     required String description,
     List<File>? evidenceFiles,
   }) async {
+    final url = '${ApiConstants.baseUrl}/disputes/raise';
     try {
       final token = await _getToken();
 
@@ -91,8 +106,6 @@ class DisputeService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/disputes/raise';
-
       
       
       
@@ -102,6 +115,13 @@ class DisputeService {
       
 
       if (evidenceFiles != null && evidenceFiles.isNotEmpty) {
+        ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {
+          'booking_id': bookingId,
+          'reason': reason,
+          'description': description,
+          'evidence_files_count': evidenceFiles.length,
+        });
+
         final request = http.MultipartRequest('POST', Uri.parse(url));
         request.headers.addAll({
           'Accept': 'application/json',
@@ -132,28 +152,34 @@ class DisputeService {
         final responseData = jsonDecode(response.body);
 
         if (response.statusCode == 200 || response.statusCode == 201) {
+          ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
           return RaiseDisputeResponse.fromJson(responseData);
         } else if (response.statusCode == 401) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
           return RaiseDisputeResponse(
             success: false,
             message: 'Session expired. Please login again.',
           );
         } else if (response.statusCode == 400) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 400, error: 'Cannot raise dispute for this booking');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Cannot raise dispute for this booking.',
           );
         } else if (response.statusCode == 404) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Booking not found');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Booking not found.',
           );
         } else if (response.statusCode == 422) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 422, error: 'Invalid dispute data');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Invalid dispute data.',
           );
         } else {
+          ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to raise dispute');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Failed to raise dispute.',
@@ -165,6 +191,8 @@ class DisputeService {
           'reason': reason,
           'description': description,
         };
+
+        ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
         final response = await http.post(
           Uri.parse(url),
@@ -184,28 +212,34 @@ class DisputeService {
         final responseData = jsonDecode(response.body);
 
         if (response.statusCode == 200 || response.statusCode == 201) {
+          ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
           return RaiseDisputeResponse.fromJson(responseData);
         } else if (response.statusCode == 401) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
           return RaiseDisputeResponse(
             success: false,
             message: 'Session expired. Please login again.',
           );
         } else if (response.statusCode == 400) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 400, error: 'Cannot raise dispute for this booking');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Cannot raise dispute for this booking.',
           );
         } else if (response.statusCode == 404) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Booking not found');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Booking not found.',
           );
         } else if (response.statusCode == 422) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 422, error: 'Invalid dispute data');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Invalid dispute data.',
           );
         } else {
+          ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to raise dispute');
           return RaiseDisputeResponse(
             success: false,
             message: responseData['message'] ?? 'Failed to raise dispute.',
@@ -213,6 +247,7 @@ class DisputeService {
         }
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return RaiseDisputeResponse(
         success: false,
@@ -222,6 +257,7 @@ class DisputeService {
   }
 
   static Future<DisputeDetailsResponse> getDisputeDetails(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/disputes/$bookingId/details';
     try {
       final token = await _getToken();
 
@@ -232,11 +268,11 @@ class DisputeService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/disputes/$bookingId/details';
+      
+      
+      
 
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -253,25 +289,30 @@ class DisputeService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return DisputeDetailsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return DisputeDetailsResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Dispute not found for this booking');
         return DisputeDetailsResponse(
           success: false,
           message: 'Dispute not found for this booking.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get dispute details');
         return DisputeDetailsResponse(
           success: false,
           message: 'Failed to get dispute details.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return DisputeDetailsResponse(
         success: false,
@@ -280,200 +321,8 @@ class DisputeService {
     }
   }
 
-  static Future<DisputeActionResponse> addMessage({
-    required int disputeId,
-    required String message,
-    List<File>? attachments,
-  }) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        return DisputeActionResponse(
-          success: false,
-          message: 'Authentication required. Please login again.',
-        );
-      }
-
-      final url = '${ApiConstants.baseUrl}/disputes/$disputeId/message';
-
-      
-      
-      
-      
-      
-
-      if (attachments != null && attachments.isNotEmpty) {
-        final request = http.MultipartRequest('POST', Uri.parse(url));
-        request.headers.addAll({
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        });
-
-        request.fields['message'] = message;
-
-        for (int i = 0; i < attachments.length; i++) {
-          request.files.add(
-            await http.MultipartFile.fromPath(
-              'attachments[$i]',
-              attachments[i].path,
-            ),
-          );
-        }
-
-        final streamedResponse = await request.send();
-        final response = await http.Response.fromStream(streamedResponse);
-
-        
-        
-        
-        
-
-        final responseData = jsonDecode(response.body);
-
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          return DisputeActionResponse.fromJson(responseData);
-        } else if (response.statusCode == 401) {
-          return DisputeActionResponse(
-            success: false,
-            message: 'Session expired. Please login again.',
-          );
-        } else if (response.statusCode == 400) {
-          return DisputeActionResponse(
-            success: false,
-            message: responseData['message'] ?? 'Cannot add message to this dispute.',
-          );
-        } else if (response.statusCode == 404) {
-          return DisputeActionResponse(
-            success: false,
-            message: responseData['message'] ?? 'Dispute not found.',
-          );
-        } else {
-          return DisputeActionResponse(
-            success: false,
-            message: responseData['message'] ?? 'Failed to add message.',
-          );
-        }
-      } else {
-        final body = {'message': message};
-
-        final response = await http.post(
-          Uri.parse(url),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode(body),
-        );
-
-        
-        
-        
-        
-
-        final responseData = jsonDecode(response.body);
-
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          return DisputeActionResponse.fromJson(responseData);
-        } else if (response.statusCode == 401) {
-          return DisputeActionResponse(
-            success: false,
-            message: 'Session expired. Please login again.',
-          );
-        } else if (response.statusCode == 400) {
-          return DisputeActionResponse(
-            success: false,
-            message: responseData['message'] ?? 'Cannot add message to this dispute.',
-          );
-        } else if (response.statusCode == 404) {
-          return DisputeActionResponse(
-            success: false,
-            message: responseData['message'] ?? 'Dispute not found.',
-          );
-        } else {
-          return DisputeActionResponse(
-            success: false,
-            message: responseData['message'] ?? 'Failed to add message.',
-          );
-        }
-      }
-    } catch (e) {
-      
-      return DisputeActionResponse(
-        success: false,
-        message: 'Network error. Please check your connection.',
-      );
-    }
-  }
-
-  static Future<DisputeActionResponse> cancelDispute(int disputeId, {String? reason}) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        return DisputeActionResponse(
-          success: false,
-          message: 'Authentication required. Please login again.',
-        );
-      }
-
-      final url = '${ApiConstants.baseUrl}/disputes/$disputeId/cancel';
-      final body = reason != null ? {'reason': reason} : {};
-
-      
-      
-      
-      
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(body),
-      );
-
-      
-      
-      
-      
-
-      final responseData = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return DisputeActionResponse.fromJson(responseData);
-      } else if (response.statusCode == 401) {
-        return DisputeActionResponse(
-          success: false,
-          message: 'Session expired. Please login again.',
-        );
-      } else if (response.statusCode == 400) {
-        return DisputeActionResponse(
-          success: false,
-          message: responseData['message'] ?? 'Cannot cancel this dispute.',
-        );
-      } else if (response.statusCode == 404) {
-        return DisputeActionResponse(
-          success: false,
-          message: responseData['message'] ?? 'Dispute not found.',
-        );
-      } else {
-        return DisputeActionResponse(
-          success: false,
-          message: responseData['message'] ?? 'Failed to cancel dispute.',
-        );
-      }
-    } catch (e) {
-      
-      return DisputeActionResponse(
-        success: false,
-        message: 'Network error. Please check your connection.',
-      );
-    }
-  }
+  // REMOVED: addMessage() - Endpoint /disputes/{id}/message does NOT exist in API documentation.
+  // REMOVED: cancelDispute() - Endpoint /disputes/{id}/cancel does NOT exist in API documentation.
 }
 
 
@@ -625,7 +474,7 @@ class DisputeBooking {
       status: json['status'],
       date: json['date'] ?? json['booking_date'],
       time: json['time'] ?? json['booking_time'],
-      amount: json['amount'] != null ? (json['amount']).toDouble() : null,
+      amount: DisputeService._parseDouble(json['amount']),
       client: json['client'] != null
           ? DisputeUser.fromJson(json['client'])
           : null,

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/postavatarmodel.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class AvatarService {
   static Future<String?> _getToken() async {
@@ -12,6 +13,7 @@ class AvatarService {
   }
 
   static Future<PostavatarModel?> uploadAvatar(File imageFile) async {
+    final url = '${ApiConstants.baseUrl}/profile/avatar';
     try {
       final token = await _getToken();
       
@@ -19,9 +21,11 @@ class AvatarService {
         return null;
       }
 
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'file_count': 1, 'file_name': imageFile.path.split('/').last});
+
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('${ApiConstants.baseUrl}/profile/avatar'),
+        Uri.parse(url),
       );
 
       request.headers.addAll({
@@ -40,12 +44,15 @@ class AvatarService {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return PostavatarModel.fromJson(data);
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to upload avatar');
         return null;
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }

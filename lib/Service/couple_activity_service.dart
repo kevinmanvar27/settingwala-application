@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class CoupleActivityService {
   static Future<String?> _getToken() async {
@@ -9,7 +10,16 @@ class CoupleActivityService {
     return prefs.getString('auth_token');
   }
 
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
   static Future<CoupleActivityRequestsResponse> getRequests({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/requests?page=$page';
     try {
       final token = await _getToken();
 
@@ -20,11 +30,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/requests?page=$page';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -35,27 +42,25 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return CoupleActivityRequestsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityRequestsResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get couple activity requests');
         return CoupleActivityRequestsResponse(
           success: false,
           message: 'Failed to get couple activity requests.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityRequestsResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -64,6 +69,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityActionResponse> sendRequest(int userId) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/request';
     try {
       final token = await _getToken();
 
@@ -74,13 +80,10 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/request';
       final body = {'user_id': userId};
 
-      
-      
-      
-      
+      // Log API call with body
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -92,38 +95,38 @@ class CoupleActivityService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CoupleActivityActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot send request to this user');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot send request to this user.',
         );
       } else if (response.statusCode == 422) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 422, error: 'Invalid request');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Invalid request.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to send request');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to send request.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -132,6 +135,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityActionResponse> acceptRequest(int requestId) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/request/$requestId/accept';
     try {
       final token = await _getToken();
 
@@ -142,11 +146,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/request/$requestId/accept';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -157,38 +158,38 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CoupleActivityActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Request not found');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Request not found.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot accept this request');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot accept this request.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to accept request');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to accept request.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -197,6 +198,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityActionResponse> rejectRequest(int requestId) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/request/$requestId/reject';
     try {
       final token = await _getToken();
 
@@ -207,11 +209,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/request/$requestId/reject';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -222,38 +221,38 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CoupleActivityActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Request not found');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Request not found.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot reject this request');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot reject this request.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to reject request');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to reject request.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -262,6 +261,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityActionResponse> cancelRequest(int requestId) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/request/$requestId';
     try {
       final token = await _getToken();
 
@@ -272,11 +272,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/request/$requestId';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -287,33 +284,32 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CoupleActivityActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Request not found');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Request not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to cancel request');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to cancel request.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -322,6 +318,7 @@ class CoupleActivityService {
   }
 
   static Future<PartnershipResponse> getPartnership() async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/partnership';
     try {
       final token = await _getToken();
 
@@ -332,11 +329,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/partnership';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -347,32 +341,31 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return PartnershipResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return PartnershipResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'No active partnership found');
         return PartnershipResponse(
           success: false,
           message: 'No active partnership found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get partnership details');
         return PartnershipResponse(
           success: false,
           message: 'Failed to get partnership details.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return PartnershipResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -381,6 +374,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityActionResponse> endPartnership() async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/partnership';
     try {
       final token = await _getToken();
 
@@ -391,11 +385,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/partnership';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -406,33 +397,32 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CoupleActivityActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'No active partnership to end');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'No active partnership to end.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to end partnership');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to end partnership.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -441,6 +431,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityActionResponse> blockUser(int userId) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/block/$userId';
     try {
       final token = await _getToken();
 
@@ -451,11 +442,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/block/$userId';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -466,38 +454,38 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CoupleActivityActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Cannot block this user');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot block this user.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'User not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to block user');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to block user.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -506,6 +494,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityActionResponse> unblockUser(int userId) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/block/$userId';
     try {
       final token = await _getToken();
 
@@ -516,11 +505,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/block/$userId';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -531,33 +517,32 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CoupleActivityActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found or not blocked');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'User not found or not blocked.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to unblock user');
         return CoupleActivityActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to unblock user.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityActionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -566,6 +551,7 @@ class CoupleActivityService {
   }
 
   static Future<CoupleActivityHistoryResponse> getHistory({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/couple-activity/history?page=$page';
     try {
       final token = await _getToken();
 
@@ -576,11 +562,8 @@ class CoupleActivityService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/couple-activity/history?page=$page';
-
-      
-      
-      
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -591,27 +574,25 @@ class CoupleActivityService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return CoupleActivityHistoryResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return CoupleActivityHistoryResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get couple activity history');
         return CoupleActivityHistoryResponse(
           success: false,
           message: 'Failed to get couple activity history.',
         );
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CoupleActivityHistoryResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -619,81 +600,41 @@ class CoupleActivityService {
     }
   }
 
-  static Future<BlockedUsersResponse> getBlockedUsers({int page = 1}) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        return BlockedUsersResponse(
-          success: false,
-          message: 'Authentication required. Please login again.',
-        );
-      }
-
-      final url = '${ApiConstants.baseUrl}/couple-activity/blocked?page=$page';
-
-      
-      
-      
-
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      
-      
-      
-      
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        return BlockedUsersResponse.fromJson(responseData);
-      } else if (response.statusCode == 401) {
-        return BlockedUsersResponse(
-          success: false,
-          message: 'Session expired. Please login again.',
-        );
-      } else {
-        return BlockedUsersResponse(
-          success: false,
-          message: 'Failed to get blocked users.',
-        );
-      }
-    } catch (e) {
-      
-      return BlockedUsersResponse(
-        success: false,
-        message: 'Network error. Please check your connection.',
-      );
-    }
-  }
+  // REMOVED: getBlockedUsers() - Endpoint /couple-activity/blocked does NOT exist. Use ChatService.getBlockedUsers() instead.
 }
 
 
+/// FIX: API Section 14.1 returns separate 'sent_requests' and 'received_requests' arrays
 class CoupleActivityRequestsResponse {
   final bool success;
   final String message;
-  final List<CoupleActivityRequest> data;
+  final List<CoupleActivityRequest> sentRequests;
+  final List<CoupleActivityRequest> receivedRequests;
   final CoupleActivityPaginationMeta? pagination;
 
   CoupleActivityRequestsResponse({
     required this.success,
     required this.message,
-    this.data = const [],
+    this.sentRequests = const [],
+    this.receivedRequests = const [],
     this.pagination,
   });
 
+  /// Getter for backward compatibility - returns combined list
+  List<CoupleActivityRequest> get data => [...sentRequests, ...receivedRequests];
+
   factory CoupleActivityRequestsResponse.fromJson(Map<String, dynamic> json) {
+    final dataMap = json['data'] as Map<String, dynamic>?;
     return CoupleActivityRequestsResponse(
       success: json['success'] ?? false,
       message: json['message'] ?? '',
-      data: json['data'] != null
-          ? (json['data'] as List)
+      sentRequests: dataMap?['sent_requests'] != null
+          ? (dataMap!['sent_requests'] as List)
+              .map((item) => CoupleActivityRequest.fromJson(item))
+              .toList()
+          : [],
+      receivedRequests: dataMap?['received_requests'] != null
+          ? (dataMap!['received_requests'] as List)
               .map((item) => CoupleActivityRequest.fromJson(item))
               .toList()
           : [],
@@ -773,7 +714,7 @@ class CoupleActivityUser {
       age: json['age'] != null ? (json['age'] is int ? json['age'] : (json['age'] as num).toInt()) : null,
       gender: json['gender'],
       city: json['city'],
-      rating: json['rating'] != null ? (json['rating']).toDouble() : null,
+      rating: CoupleActivityService._parseDouble(json['rating']),
     );
   }
 }
@@ -855,9 +796,7 @@ class Partnership {
           ? CoupleActivityUser.fromJson(json['partner'])
           : null,
       totalBookings: json['total_bookings'],
-      totalEarnings: json['total_earnings'] != null
-          ? (json['total_earnings']).toDouble()
-          : null,
+      totalEarnings: CoupleActivityService._parseDouble(json['total_earnings']),
     );
   }
 }

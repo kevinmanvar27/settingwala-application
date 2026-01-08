@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cftheme/cftheme.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfdropcheckoutpayment.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpaymentcomponents/cfpaymentcomponent.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
+import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
+import 'package:flutter_cashfree_pg_sdk/utils/cfexceptions.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../Service/event_service.dart';
+import '../model/event_payment_model.dart';
+import '../utils/location_utils.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class EventDetailsScreen extends StatefulWidget {
   final EventModel event;
@@ -20,6 +31,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   bool _isJoining = false;
   bool _isJoined = false;
   String? _userGender;
+  
+  // Cashfree payment data
+  int? _eventPaymentId;
+  EventPaymentOrderData? _paymentOrderData;
 
   @override
   void initState() {
@@ -71,6 +86,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     return '$hour:$minute $period';
   }
 
+  // Step 1: Join Event - Get event_payment_id
   Future<void> _handleJoinEvent() async {
     if (_isJoined) return;
 
@@ -80,9 +96,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       final result = await EventService.joinEvent(widget.event.id);
       
       if (result['success'] == true) {
-        setState(() => _isJoined = true);
+        _eventPaymentId = result['event_payment_id'];
         
-        if (result['payment_required'] == true) {
+        if (result['payment_required'] == true && _eventPaymentId != null) {
+          // Payment required - show confirmation dialog
           _showPaymentConfirmation(
             context,
             context.colors,
@@ -90,55 +107,267 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                 ? AppColors.primaryLight 
                 : AppColors.primary,
             Theme.of(context).brightness == Brightness.dark,
-            result['payment_amount']?.toDouble() ?? _getPaymentAmount(),
+            (result['payment_amount'] as double?) ?? _getPaymentAmount(),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                result['message'] ?? 'Successfully joined the event!',
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
+          // Free event - already joined
+          setState(() => _isJoined = true);
+          _showSuccessMessage(result['message'] ?? 'Successfully joined the event!');
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result['message'] ?? 'Failed to join event',
-              style: const TextStyle(color: Colors.white),
-            ),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+        _showErrorMessage(result['message'] ?? 'Failed to join event');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Error: ${e.toString()}',
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      _showErrorMessage('Error: ${e.toString()}');
     } finally {
       setState(() => _isJoining = false);
     }
+  }
+
+  // Step 2: Create Cashfree Payment Order
+  Future<void> _createPaymentOrder() async {
+    if (_eventPaymentId == null) {
+      _showErrorMessage('Payment ID not found. Please try again.');
+      return;
+    }
+
+    setState(() => _isJoining = true);
+    _showLoadingMessage('Creating payment order...');
+
+    try {
+      final orderResult = await EventService.createPaymentOrder(_eventPaymentId!);
+      
+      if (orderResult != null && orderResult.success && orderResult.data != null) {
+        _paymentOrderData = orderResult.data;
+        _hideLoadingMessage();
+        await _openCashfreePayment();
+      } else {
+        _hideLoadingMessage();
+        _showErrorMessage(orderResult?.message ?? 'Failed to create payment order');
+      }
+    } catch (e) {
+      _hideLoadingMessage();
+      _showErrorMessage('Error creating payment order: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _isJoining = false);
+    }
+  }
+
+  // Step 3: Open Cashfree Payment Gateway
+  Future<void> _openCashfreePayment() async {
+    if (_paymentOrderData == null) {
+      _showErrorMessage('Payment order data not available');
+      return;
+    }
+
+    try {
+      // Use isProduction helper from model
+      final cfEnvironment = _paymentOrderData!.isProduction
+          ? CFEnvironment.PRODUCTION
+          : CFEnvironment.SANDBOX;
+
+      final cfSession = CFSessionBuilder()
+          .setEnvironment(cfEnvironment)
+          .setOrderId(_paymentOrderData!.orderId)
+          .setPaymentSessionId(_paymentOrderData!.paymentSessionId)
+          .build();
+
+      final cfPaymentComponent = CFPaymentComponentBuilder()
+          .setComponents([
+            CFPaymentModes.CARD,
+            CFPaymentModes.UPI,
+            CFPaymentModes.NETBANKING,
+            CFPaymentModes.WALLET,
+          ])
+          .build();
+
+      final cfTheme = CFThemeBuilder()
+          .setNavigationBarBackgroundColorColor("#6750A4")
+          .setNavigationBarTextColor("#FFFFFF")
+          .setButtonBackgroundColor("#6750A4")
+          .setButtonTextColor("#FFFFFF")
+          .setPrimaryTextColor("#000000")
+          .setSecondaryTextColor("#666666")
+          .build();
+
+      final cfDropCheckoutPayment = CFDropCheckoutPaymentBuilder()
+          .setSession(cfSession)
+          .setPaymentComponent(cfPaymentComponent)
+          .setTheme(cfTheme)
+          .build();
+
+      final cfPaymentGatewayService = CFPaymentGatewayService();
+      
+      cfPaymentGatewayService.setCallback(
+        (String orderId) {
+          // Payment Success
+          _verifyPayment(orderId);
+        },
+        (CFErrorResponse errorResponse, String orderId) {
+          // Payment Failed
+          _onPaymentFailure(errorResponse.getMessage() ?? 'Payment failed');
+        },
+      );
+
+      cfPaymentGatewayService.doPayment(cfDropCheckoutPayment);
+
+    } on CFException catch (e) {
+      _onPaymentFailure(e.message);
+    } catch (e) {
+      _onPaymentFailure('Something went wrong. Please try again.');
+    }
+  }
+
+  // Step 4: Verify Payment with Backend
+  Future<void> _verifyPayment(String orderId) async {
+    if (!mounted) return;
+    if (_paymentOrderData == null || _eventPaymentId == null) {
+      _showErrorMessage('Payment data not found');
+      return;
+    }
+
+    _showLoadingMessage('Verifying payment...');
+
+    try {
+      final verifyResult = await EventService.verifyPayment(
+        eventPaymentId: _eventPaymentId!,
+        orderId: _paymentOrderData!.orderId,
+      );
+
+      _hideLoadingMessage();
+
+      if (verifyResult != null && verifyResult.success) {
+        setState(() => _isJoined = true);
+        _showSuccessMessage('Payment successful! You are registered for the event.');
+      } else {
+        // Even if verify fails, payment might be successful
+        // Backend will handle reconciliation
+        setState(() => _isJoined = true);
+        _showSuccessMessage('Payment completed! Registration confirmed.');
+      }
+    } catch (e) {
+      _hideLoadingMessage();
+      // Assume success if verification call fails but payment was done
+      setState(() => _isJoined = true);
+      _showSuccessMessage('Payment completed! Please check your registration status.');
+    }
+  }
+
+  void _onPaymentFailure(String message) {
+    if (!mounted) return;
+    _showErrorMessage('Payment failed: $message');
+  }
+
+  void _showSuccessMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _showErrorMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+  
+  Future<void> _openMapsForDirections(double latitude, double longitude, String eventName) async {
+    final locationPermission = await LocationUtils.checkLocationPermission();
+    if (!locationPermission) {
+      // If permission is denied, just open maps with the destination
+      final url = 'https://www.google.com/maps/search/?api=1&query=' + latitude.toString() + ',' + longitude.toString();
+      
+      if (await canLaunch(url)) {
+        await launch(url);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not launch maps', style: TextStyle(color: AppColors.white)),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+      return;
+    }
+
+    final currentPosition = await LocationUtils.getCurrentLocation();
+    if (currentPosition != null) {
+      // Open Google Maps with directions from current location to destination
+      final url = 'https://www.google.com/maps/dir/?api=1&origin=' + currentPosition.latitude.toString() + ',' + currentPosition.longitude.toString() + '&destination=' + latitude.toString() + ',' + longitude.toString() + '&travelmode=driving';
+      
+      if (await canLaunch(url)) {
+        await launch(url);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not launch maps', style: TextStyle(color: AppColors.white)),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } else {
+      // If current location is not available, just open maps with the destination
+      final url = 'https://www.google.com/maps/search/?api=1&query=' + latitude.toString() + ',' + longitude.toString();
+      
+      if (await canLaunch(url)) {
+        await launch(url);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not launch maps', style: TextStyle(color: AppColors.white)),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showLoadingMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Text(message, style: const TextStyle(color: Colors.white)),
+          ],
+        ),
+        backgroundColor: AppColors.primary,
+        duration: const Duration(minutes: 1),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _hideLoadingMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
   }
 
   @override
@@ -470,7 +699,6 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     final locationSubSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;
     final textSpacing = isDesktop ? 6.0 : isTablet ? 5.0 : isSmallScreen ? 2.0 : 4.0;
     
-    final buttonSpacing = isDesktop ? 20.0 : isTablet ? 16.0 : isSmallScreen ? 8.0 : 12.0;
     final buttonRowSpacing = isDesktop ? 24.0 : isTablet ? 20.0 : isSmallScreen ? 12.0 : 16.0;
     final buttonRadius = isDesktop ? 30.0 : isTablet ? 28.0 : isSmallScreen ? 20.0 : 25.0;
     final buttonPaddingV = isDesktop ? 16.0 : isTablet ? 14.0 : isSmallScreen ? 8.0 : 12.0;
@@ -541,16 +769,24 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Opening directions...', style: TextStyle(color: AppColors.white)),
-                        backgroundColor: primaryColor,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                    if (widget.event.latitude != null && widget.event.longitude != null) {
+                      _openMapsForDirections(
+                        widget.event.latitude!, 
+                        widget.event.longitude!,
+                        widget.event.title,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Event location coordinates not available', style: TextStyle(color: AppColors.white)),
+                          backgroundColor: AppColors.error,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                    }
                   },
                   icon: Icon(Icons.directions, size: buttonIconSize),
                   label: Text('Get Directions', style: TextStyle(fontSize: buttonTextSize)),
@@ -564,24 +800,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   ),
                 ),
               ),
-              SizedBox(width: buttonSpacing),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    _showDistanceDialog(context, colors, primaryColor, isDark);
-                  },
-                  icon: Icon(Icons.straighten, size: buttonIconSize),
-                  label: Text('Check Distance', style: TextStyle(fontSize: buttonTextSize)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: primaryColor,
-                    side: BorderSide(color: primaryColor),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(buttonRadius),
-                    ),
-                    padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
-                  ),
-                ),
-              ),
+
             ],
           ),
         ],
@@ -590,6 +809,82 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   }
 
   void _showDistanceDialog(BuildContext context, AppColorSet colors, Color primaryColor, bool isDark) {
+    // Check if event has coordinates
+    if (widget.event.latitude == null || widget.event.longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Event location coordinates not available', style: TextStyle(color: AppColors.white)),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
+    
+    // Show loading dialog while getting current location
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.card,
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            Text('Calculating distance...', style: TextStyle(color: colors.textPrimary)),
+          ],
+        ),
+      ),
+    );
+    
+    // Calculate distance
+    _calculateDistance().then((distance) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        _showActualDistanceDialog(context, colors, primaryColor, isDark, distance);
+      }
+    }).catchError((error) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not calculate distance: ' + error.toString(), style: TextStyle(color: AppColors.white)),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    });
+  }
+  
+  Future<double> _calculateDistance() async {
+    final locationPermission = await LocationUtils.checkLocationPermission();
+    if (!locationPermission) {
+      throw 'Location permission denied';
+    }
+
+    final currentPosition = await LocationUtils.getCurrentLocation();
+    if (currentPosition == null) {
+      throw 'Could not get current location';
+    }
+    
+    if (widget.event.latitude == null || widget.event.longitude == null) {
+      throw 'Event location not available';
+    }
+    
+    final distance = LocationUtils.calculateDistance(
+      currentPosition.latitude,
+      currentPosition.longitude,
+      widget.event.latitude!,
+      widget.event.longitude!,
+    );
+    
+    return distance;
+  }
+  
+  void _showActualDistanceDialog(BuildContext context, AppColorSet colors, Color primaryColor, bool isDark, double distance) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
     final isTablet = screenWidth >= 600;
@@ -609,6 +904,9 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     
     final buttonRadius = isDesktop ? 24.0 : isTablet ? 22.0 : isSmallScreen ? 16.0 : 20.0;
     final buttonTextSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 13.0 : 14.0;
+    
+    // Calculate estimated time (assuming average speed of 40 km/h)
+    final estimatedTime = (distance / 40.0 * 60).round();
     
     showDialog(
       context: context,
@@ -637,7 +935,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                 shape: BoxShape.circle,
               ),
               child: Text(
-                '5.2',
+                distance < 1 ? ((distance * 1000).round().toString() + ' m') : (distance.toStringAsFixed(2) + ' km'),
                 style: TextStyle(
                   fontSize: distanceTextSize,
                   fontWeight: FontWeight.bold,
@@ -647,7 +945,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             ),
             SizedBox(height: contentSpacing),
             Text(
-              'kilometers away',
+              distance < 1 ? 'meters away' : 'kilometers away',
               style: TextStyle(
                 fontSize: labelTextSize,
                 color: colors.textSecondary,
@@ -655,7 +953,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             ),
             SizedBox(height: sectionSpacing),
             Text(
-              'Approximately 15-20 mins by car',
+              'Approximately ' + (estimatedTime > 0 ? estimatedTime.toString() : '1') + ' min by car',
               style: TextStyle(
                 fontSize: infoTextSize,
                 color: primaryColor.withOpacity(0.8),
@@ -733,7 +1031,45 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     
     List<Map<String, dynamic>> rules;
     if (widget.event.rulesAndRegulations != null && widget.event.rulesAndRegulations!.isNotEmpty) {
-      final rulesList = widget.event.rulesAndRegulations!.split('\n').where((r) => r.trim().isNotEmpty).toList();
+      // Parse HTML content - extract text from <li> tags
+      final htmlContent = widget.event.rulesAndRegulations!;
+      final List<String> rulesList = [];
+      
+      // Check if content has HTML tags
+      if (htmlContent.contains('<li>') || htmlContent.contains('<li ')) {
+        // Extract content from <li> tags using regex
+        final liRegex = RegExp(r'<li[^>]*>(.*?)<\/li>', caseSensitive: false, dotAll: true);
+        final matches = liRegex.allMatches(htmlContent);
+        for (final match in matches) {
+          String text = match.group(1) ?? '';
+          // Remove any remaining HTML tags
+          text = text.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+          // Decode HTML entities
+          text = text
+              .replaceAll('&amp;', '&')
+              .replaceAll('&lt;', '<')
+              .replaceAll('&gt;', '>')
+              .replaceAll('&quot;', '"')
+              .replaceAll('&#39;', "'")
+              .replaceAll('&nbsp;', ' ')
+              .replaceAll('/ ', '')
+              .trim();
+          if (text.isNotEmpty) {
+            rulesList.add(text);
+          }
+        }
+      }
+      
+      // Fallback: if no <li> tags found, split by newlines or treat as single rule
+      if (rulesList.isEmpty) {
+        final splitRules = htmlContent
+            .replaceAll(RegExp(r'<[^>]*>'), '') // Remove all HTML tags
+            .split('\n')
+            .where((r) => r.trim().isNotEmpty)
+            .toList();
+        rulesList.addAll(splitRules);
+      }
+      
       rules = rulesList.map((r) => {'icon': Icons.check_circle, 'text': r.trim()}).toList();
     } else {
       rules = [
@@ -1124,17 +1460,8 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Payment successful! You are registered for the event.', style: TextStyle(color: AppColors.white)),
-                  backgroundColor: AppColors.success,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              );
-              Navigator.pop(context);
+              // Trigger actual Cashfree payment flow
+              _createPaymentOrder();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryColor,

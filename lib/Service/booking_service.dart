@@ -1,11 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/postbookingsmodel.dart';
 import '../model/booking_payment_model.dart';
 import '../model/booking_payment_details_model.dart';
 import '../model/postbookingpaymentmodel.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class BookingService {
   static Future<String?> _getToken() async {
@@ -14,11 +18,11 @@ class BookingService {
   }
 
   static Future<BookingResponse?> createBooking(Postbookingsmodel booking) async {
+    final url = '${ApiConstants.baseUrl}/bookings';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingResponse(
           success: false,
           message: 'Authentication required. Please login again.',
@@ -27,8 +31,11 @@ class BookingService {
 
       final body = booking.toJson();
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
+
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/bookings'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -37,31 +44,38 @@ class BookingService {
         body: jsonEncode(body),
       );
 
-      
-      
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return BookingResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 422) {
         final responseData = jsonDecode(response.body);
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Validation error. Please check your input.',
         );
       } else {
         final responseData = jsonDecode(response.body);
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to create booking. Please try again.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -70,11 +84,11 @@ class BookingService {
   }
 
   static Future<GetBookingsResponse?> getBookings() async {
+    final url = '${ApiConstants.baseUrl}/bookings';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return GetBookingsResponse(
           success: false,
           message: 'Authentication required. Please login again.',
@@ -82,8 +96,11 @@ class BookingService {
         );
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/bookings'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -91,17 +108,22 @@ class BookingService {
         },
       );
 
-      
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return GetBookingsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return GetBookingsResponse(
           success: false,
           message: 'Session expired. Please login again.',
           bookings: [],
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return GetBookingsResponse(
           success: false,
           message: 'Failed to fetch bookings.',
@@ -109,7 +131,8 @@ class BookingService {
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return GetBookingsResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -126,10 +149,10 @@ class BookingService {
       if (response == null || !response.success) {
         return false;
       }
-      
+
       // Check if any booking has 'accepted' status
       return response.bookings.any(
-        (booking) => booking.status.toLowerCase() == 'accepted'
+              (booking) => booking.status.toLowerCase() == 'accepted'
       );
     } catch (e) {
       return false;
@@ -137,19 +160,22 @@ class BookingService {
   }
 
   static Future<BookingResponse?> getBookingById(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingResponse(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/bookings/$bookingId'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -157,18 +183,22 @@ class BookingService {
         },
       );
 
-      
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Booking not found');
         return BookingResponse(
           success: false,
           message: 'Booking not found.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ शक
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -177,24 +207,27 @@ class BookingService {
   }
 
   static Future<BookingResponse?> cancelBooking(int bookingId, {String? reason}) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/cancel';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingResponse(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final body = <String, dynamic>{}; 
+      final body = <String, dynamic>{};
       if (reason != null && reason.isNotEmpty) {
         body['reason'] = reason;
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'booking_id': bookingId});
+
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/bookings/$bookingId/cancel'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -204,17 +237,22 @@ class BookingService {
       );
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
       } else {
         final responseData = jsonDecode(response.body);
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to cancel booking.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -226,12 +264,13 @@ class BookingService {
   /// If new duration > old duration: charges extra (wallet first, then cashfree)
   /// If new duration < old duration: refunds difference to wallet
   static Future<UpdateBookingResponse> updateBookingWithPayment(
-    int bookingId, {
-    DateTime? bookingDate,
-    String? startTime,
-    String? endTime,
-    String? notes,
-  }) async {
+      int bookingId, {
+        DateTime? bookingDate,
+        String? startTime,
+        String? endTime,
+        String? notes,
+      }) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId';
     try {
       final token = await _getToken();
 
@@ -256,7 +295,8 @@ class BookingService {
         body['notes'] = notes;
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId';
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
       final response = await http.put(
         Uri.parse(url),
@@ -271,37 +311,48 @@ class BookingService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return UpdateBookingResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return UpdateBookingResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 402) {
         // Payment required - need to pay extra amount
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Payment required');
         return UpdateBookingResponse.fromJson(responseData);
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return UpdateBookingResponse(
           success: false,
           message: responseData['message'] ?? 'Only the client can update the booking.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return UpdateBookingResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot update booking in current status.',
         );
       } else if (response.statusCode == 422) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return UpdateBookingResponse(
           success: false,
           message: responseData['message'] ?? 'Validation error. Please check your input.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return UpdateBookingResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to update booking.',
         );
       }
     } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return UpdateBookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -311,11 +362,14 @@ class BookingService {
 
   /// Initiate payment for booking update difference
   /// Called when duration increases and extra payment is needed
+  /// NOTE: This method uses process-difference-payment endpoint since initiate-update-payment doesn't exist
   static Future<BookingPaymentModel?> initiateUpdatePayment(
-    int bookingId,
-    double differenceAmount, {
-    String preferredPaymentMethod = 'wallet',
-  }) async {
+      int bookingId,
+      double differenceAmount, {
+        String preferredPaymentMethod = 'wallet',
+      }) async {
+    // FIXED: Use process-difference-payment instead of non-existent initiate-update-payment
+    final url = ApiConstants.bookingProcessDifferencePayment(bookingId);
     try {
       final token = await _getToken();
 
@@ -326,11 +380,13 @@ class BookingService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/initiate-update-payment';
       final body = {
         'amount': differenceAmount,
         'payment_method': preferredPaymentMethod,
       };
+
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'amount': differenceAmount, 'payment_method': preferredPaymentMethod});
 
       final response = await http.post(
         Uri.parse(url),
@@ -343,21 +399,29 @@ class BookingService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BookingPaymentModel.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return BookingPaymentModel(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
         final responseData = jsonDecode(response.body);
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingPaymentModel(
           success: false,
           message: responseData['message'] ?? 'Failed to initiate update payment.',
         );
       }
     } catch (e) {
+      // Network error - API call નથી થઈ શક
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingPaymentModel(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -368,6 +432,7 @@ class BookingService {
   /// Cancel booking and refund to wallet
   /// Money will be refunded to user's wallet
   static Future<CancelBookingResponse> cancelBookingWithRefund(int bookingId, {String? reason}) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/cancel';
     try {
       final token = await _getToken();
 
@@ -383,8 +448,11 @@ class BookingService {
         body['reason'] = reason;
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'booking_id': bookingId});
+
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/bookings/$bookingId/cancel'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -396,14 +464,20 @@ class BookingService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CancelBookingResponse.fromJson(responseData);
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return CancelBookingResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to cancel booking.',
         );
       }
     } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CancelBookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -418,18 +492,18 @@ class BookingService {
         String? endTime,
         String? notes,
       }) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingResponse(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final body = <String, dynamic>{}; 
+      final body = <String, dynamic>{};
       if (bookingDate != null) {
         body['booking_date'] = bookingDate.toIso8601String().split('T')[0];
       }
@@ -443,9 +517,9 @@ class BookingService {
         body['notes'] = notes;
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId';
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
-      
       final response = await http.put(
         Uri.parse(url),
         headers: {
@@ -456,41 +530,49 @@ class BookingService {
         body: jsonEncode(body),
       );
 
-      
       if (response.statusCode == 200) {
+        // API call सफल થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return BookingResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Forbidden');
         return BookingResponse(
           success: false,
           message: 'Only the client can update the booking.',
         );
       } else if (response.statusCode == 400) {
         final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Cannot update booking in current status.',
         );
       } else if (response.statusCode == 422) {
         final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Validation error. Please check your input.',
         );
       } else {
         final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to update booking.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ शक
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -498,30 +580,33 @@ class BookingService {
     }
   }
 
+  /// Initiate payment for booking
+  /// NOTE: This method uses process-payment endpoint since initiate-payment doesn't exist
   static Future<BookingPaymentModel?> initiatePayment(
       int bookingId,
       double amount, {
         String preferredPaymentMethod = 'wallet',
       }) async {
+    // FIXED: Use process-payment instead of non-existent initiate-payment
+    final url = ApiConstants.bookingProcessPayment(bookingId);
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingPaymentModel(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/initiate-payment';
       final body = {
         'amount': amount,
         'payment_method': preferredPaymentMethod,
       };
 
-       
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'amount': amount, 'payment_method': preferredPaymentMethod});
+
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -532,26 +617,30 @@ class BookingService {
         body: jsonEncode(body),
       );
 
-      
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
-        
-        
         return BookingPaymentModel.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return BookingPaymentModel(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
         final responseData = jsonDecode(response.body);
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingPaymentModel(
           success: false,
           message: responseData['message'] ?? 'Failed to initiate payment.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકે
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingPaymentModel(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -560,21 +649,20 @@ class BookingService {
   }
 
   static Future<BookingPaymentDetailsModel?> getBookingPaymentDetails(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/payment';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingPaymentDetailsModel(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/payment';
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
-       
-      
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -584,30 +672,35 @@ class BookingService {
         },
       );
 
-      
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
-        
         return BookingPaymentDetailsModel.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return BookingPaymentDetailsModel(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Booking not found');
         return BookingPaymentDetailsModel(
           success: false,
           message: 'Booking not found.',
         );
       } else {
         final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingPaymentDetailsModel(
           success: false,
           message: responseData['message'] ?? 'Failed to get payment details.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingPaymentDetailsModel(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -623,18 +716,16 @@ class BookingService {
     double walletAmountUsed = 0.0,
     String paymentMethod = 'wallet_cashfree',
   }) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/process-payment';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return PostBookingPaymentmodel(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
-
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/process-payment';
 
       final Map<String, dynamic> body = {
         'payment_method': paymentMethod,
@@ -651,8 +742,9 @@ class BookingService {
         body['cf_signature'] = cfSignature;
       }
 
-       
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'payment_method': paymentMethod, 'wallet_amount_used': walletAmountUsed});
+
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -663,23 +755,24 @@ class BookingService {
         body: jsonEncode(body),
       );
 
-      
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
-        
-
         final result = PostBookingPaymentmodel.fromJson(responseData);
-
         return result;
       } else {
         final responseData = jsonDecode(response.body);
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return PostBookingPaymentmodel(
           success: false,
           message: responseData['message'] ?? 'Failed to process payment.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return PostBookingPaymentmodel(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -688,21 +781,20 @@ class BookingService {
   }
 
   static Future<BookingResponse?> acceptBooking(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/accept';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingResponse(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/accept';
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
-       
-      
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -712,29 +804,35 @@ class BookingService {
         },
       );
 
-      
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return BookingResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Forbidden');
         return BookingResponse(
           success: false,
           message: 'Only the provider can accept this booking.',
         );
       } else {
         final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to accept booking.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -743,25 +841,25 @@ class BookingService {
   }
 
   static Future<BookingResponse?> rejectBooking(int bookingId, {String? reason}) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/reject';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return BookingResponse(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/reject';
-      final body = <String, dynamic>{}; 
+      final body = <String, dynamic>{};
       if (reason != null && reason.isNotEmpty) {
         body['reason'] = reason;
       }
 
-       
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
+
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -772,29 +870,35 @@ class BookingService {
         body: jsonEncode(body),
       );
 
-      
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BookingResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         return BookingResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Forbidden');
         return BookingResponse(
           success: false,
           message: 'Only the provider can reject this booking.',
         );
       } else {
         final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return BookingResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to reject booking.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return BookingResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -802,22 +906,141 @@ class BookingService {
     }
   }
 
-  static Future<AvailableSlotsResponse?> getAvailableSlots(int providerId, {required String date}) async {
+  /// Block client from booking
+  static Future<BookingResponse?> blockClient(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/provider/booking/$bookingId/block';
+
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
-        return AvailableSlotsResponse(
+        return BookingResponse(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$providerId/available-slots?date=$date';
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
-       
-      
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final responseData = jsonDecode(response.body);
+        return BookingResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return BookingResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Forbidden');
+        return BookingResponse(
+          success: false,
+          message: 'Only the provider can block this client.',
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
+        return BookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to block client.',
+        );
+      }
+    } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return BookingResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Unblock client
+  static Future<BookingResponse?> unblockClient(int userId) async {
+    final url = '${ApiConstants.baseUrl}/provider/user/$userId/unblock';
+
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return BookingResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final responseData = jsonDecode(response.body);
+        return BookingResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return BookingResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
+        return BookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to unblock user.',
+        );
+      }
+    } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return BookingResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Get user disputes
+  static Future<DisputesResponse?> getUserDisputes() async {
+    final url = '${ApiConstants.baseUrl}/disputes';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return DisputesResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+          disputes: [],
+        );
+      }
+
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -827,289 +1050,67 @@ class BookingService {
         },
       );
 
-      
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
-        return AvailableSlotsResponse.fromJson(responseData);
+        return DisputesResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
-        return AvailableSlotsResponse(
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return DisputesResponse(
           success: false,
           message: 'Session expired. Please login again.',
-        );
-      } else if (response.statusCode == 404) {
-        return AvailableSlotsResponse(
-          success: false,
-          message: 'Provider not found.',
+          disputes: [],
         );
       } else {
         final responseData = jsonDecode(response.body);
-        return AvailableSlotsResponse(
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
+        return DisputesResponse(
           success: false,
-          message: responseData['message'] ?? 'Failed to get available slots.',
+          message: responseData['message'] ?? 'Failed to fetch disputes.',
+          disputes: [],
         );
       }
     } catch (e) {
-      
-      return AvailableSlotsResponse(
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return DisputesResponse(
         success: false,
         message: 'Network error. Please check your connection.',
+        disputes: [],
       );
     }
   }
 
-  static Future<CalendarBookingsResponse?> getCalendarBookings(String date) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        
-        return CalendarBookingsResponse(
-          success: false,
-          message: 'Authentication required. Please login again.',
-        );
-      }
-
-      final url = '${ApiConstants.baseUrl}/calendar/bookings/$date';
-
-       
-      
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        return CalendarBookingsResponse.fromJson(responseData);
-      } else if (response.statusCode == 401) {
-        return CalendarBookingsResponse(
-          success: false,
-          message: 'Session expired. Please login again.',
-        );
-      } else {
-        final responseData = jsonDecode(response.body);
-        return CalendarBookingsResponse(
-          success: false,
-          message: responseData['message'] ?? 'Failed to get calendar bookings.',
-        );
-      }
-    } catch (e) {
-      
-      return CalendarBookingsResponse(
-        success: false,
-        message: 'Network error. Please check your connection.',
-      );
-    }
-  }
-
-  static Future<UserAvailabilityResponse?> getUserAvailability(int userId) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        
-        return UserAvailabilityResponse(
-          success: false,
-          message: 'Authentication required. Please login again.',
-        );
-      }
-
-      final url = '${ApiConstants.baseUrl}/users/$userId/availability';
-
-       
-      
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        return UserAvailabilityResponse.fromJson(responseData);
-      } else if (response.statusCode == 401) {
-        return UserAvailabilityResponse(
-          success: false,
-          message: 'Session expired. Please login again.',
-        );
-      } else if (response.statusCode == 404) {
-        return UserAvailabilityResponse(
-          success: false,
-          message: 'User not found.',
-        );
-      } else {
-        final responseData = jsonDecode(response.body);
-        return UserAvailabilityResponse(
-          success: false,
-          message: responseData['message'] ?? 'Failed to get user availability.',
-        );
-      }
-    } catch (e) {
-      
-      return UserAvailabilityResponse(
-        success: false,
-        message: 'Network error. Please check your connection.',
-      );
-    }
-  }
-
-  static Future<ChatDetailsResponse?> getChatDetails(int bookingId) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        
-        return ChatDetailsResponse(
-          success: false,
-          message: 'Authentication required. Please login again.',
-        );
-      }
-
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/chat-details';
-
-       
-      
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        return ChatDetailsResponse.fromJson(responseData);
-      } else if (response.statusCode == 401) {
-        return ChatDetailsResponse(
-          success: false,
-          message: 'Session expired. Please login again.',
-        );
-      } else if (response.statusCode == 404) {
-        return ChatDetailsResponse(
-          success: false,
-          message: 'Booking not found.',
-        );
-      } else {
-        final responseData = jsonDecode(response.body);
-        return ChatDetailsResponse(
-          success: false,
-          message: responseData['message'] ?? 'Failed to get chat details.',
-        );
-      }
-    } catch (e) {
-      
-      return ChatDetailsResponse(
-        success: false,
-        message: 'Network error. Please check your connection.',
-      );
-    }
-  }
-
-  static Future<ProviderBookingStatusResponse?> getProviderBookingStatus(int providerId) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        
-        return ProviderBookingStatusResponse(
-          success: false,
-          message: 'Authentication required. Please login again.',
-        );
-      }
-
-      final url = '${ApiConstants.baseUrl}/bookings/provider/$providerId/status';
-
-       
-      
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        return ProviderBookingStatusResponse.fromJson(responseData);
-      } else if (response.statusCode == 401) {
-        return ProviderBookingStatusResponse(
-          success: false,
-          message: 'Session expired. Please login again.',
-        );
-      } else if (response.statusCode == 404) {
-        return ProviderBookingStatusResponse(
-          success: false,
-          message: 'Provider not found.',
-        );
-      } else {
-        final responseData = jsonDecode(response.body);
-        return ProviderBookingStatusResponse(
-          success: false,
-          message: responseData['message'] ?? 'Failed to get booking status.',
-        );
-      }
-    } catch (e) {
-      
-      return ProviderBookingStatusResponse(
-        success: false,
-        message: 'Network error. Please check your connection.',
-      );
-    }
-  }
-
-  static Future<PostBookingPaymentmodel> processDifferencePayment({
+  /// Raise dispute for a booking
+  static Future<DisputeResponse?> raiseDispute({
     required int bookingId,
-    required double amount,
-    String? cfOrderId,
-    String? cfTransactionId,
-    String? cfSignature,
-    String paymentMethod = 'wallet',
+    required String reason,
+    String type = 'other',
+    List<String> evidence = const [],
   }) async {
+    final url = '${ApiConstants.baseUrl}/disputes/raise';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
-        return PostBookingPaymentmodel(
+        return DisputeResponse(
           success: false,
           message: 'Authentication required. Please login again.',
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/bookings/$bookingId/process-difference-payment';
-
-      final Map<String, dynamic> body = {
-        'amount': amount,
-        'payment_method': paymentMethod,
+      final body = {
+        'booking_id': bookingId,
+        'reason': reason,
+        'type': type,
+        'evidence': evidence,
       };
 
-      if (cfOrderId != null && cfOrderId.isNotEmpty) {
-        body['cf_order_id'] = cfOrderId;
-      }
-      if (cfTransactionId != null && cfTransactionId.isNotEmpty) {
-        body['cf_transaction_id'] = cfTransactionId;
-      }
-      if (cfSignature != null && cfSignature.isNotEmpty) {
-        body['cf_signature'] = cfSignature;
-      }
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
-       
-      
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -1120,28 +1121,527 @@ class BookingService {
         body: jsonEncode(body),
       );
 
-      
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
-        
-        return PostBookingPaymentmodel.fromJson(responseData);
+        return DisputeResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return DisputeResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
       } else {
         final responseData = jsonDecode(response.body);
-        return PostBookingPaymentmodel(
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
+        return DisputeResponse(
           success: false,
-          message: responseData['message'] ?? 'Failed to process difference payment.',
+          message: responseData['message'] ?? 'Failed to raise dispute.',
         );
       }
     } catch (e) {
-      
-      return PostBookingPaymentmodel(
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return DisputeResponse(
         success: false,
         message: 'Network error. Please check your connection.',
       );
     }
   }
+
+  /// Get dispute details
+  static Future<DisputeDetailsResponse?> getDisputeDetails(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/disputes/$bookingId/details';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return DisputeDetailsResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final responseData = jsonDecode(response.body);
+        return DisputeDetailsResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return DisputeDetailsResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
+        return DisputeDetailsResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to get dispute details.',
+        );
+      }
+    } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return DisputeDetailsResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Upload start meeting photo
+  static Future<MeetingVerificationResponse> uploadStartPhoto({
+    required int bookingId,
+    required String photoPath, // File path for image upload
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    String? address,
+    String? fullAddress,
+  }) async {
+    final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/start-photo';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return MeetingVerificationResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'photo': 'file', 'latitude': latitude, 'longitude': longitude});
+
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse(url),
+      );
+
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+
+      // Add file with proper filename and content type
+      final fileName = path.basename(photoPath);
+      final extension = path.extension(photoPath).toLowerCase().replaceFirst('.', '');
+      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      
+      request.files.add(await http.MultipartFile.fromPath(
+        'photo',
+        photoPath,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      ));
+
+      // Add other fields
+      request.fields['latitude'] = latitude.toString();
+      request.fields['longitude'] = longitude.toString();
+      if (accuracy != null) request.fields['accuracy'] = accuracy.toString();
+      if (address != null) request.fields['address'] = address;
+      if (fullAddress != null) request.fields['full_address'] = fullAddress;
+
+      var response = await request.send();
+      var responseBody = await response.stream.bytesToString();
+      var jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        return MeetingVerificationResponse.fromJson(jsonData);
+      } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return MeetingVerificationResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: jsonData['message']);
+        return MeetingVerificationResponse(
+          success: false,
+          message: jsonData['message'] ?? 'Failed to upload start photo.',
+        );
+      }
+    } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return MeetingVerificationResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Upload end meeting photo
+  static Future<MeetingVerificationResponse> uploadEndPhoto({
+    required int bookingId,
+    required String photoPath, // File path for image upload
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    String? address,
+    String? fullAddress,
+  }) async {
+    final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/end-photo';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return MeetingVerificationResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'photo': 'file', 'latitude': latitude, 'longitude': longitude});
+
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse(url),
+      );
+
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+
+      // Add file with proper filename and content type
+      final fileName = path.basename(photoPath);
+      final extension = path.extension(photoPath).toLowerCase().replaceFirst('.', '');
+      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+      
+      request.files.add(await http.MultipartFile.fromPath(
+        'photo',
+        photoPath,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      ));
+
+      // Add other fields
+      request.fields['latitude'] = latitude.toString();
+      request.fields['longitude'] = longitude.toString();
+      if (accuracy != null) request.fields['accuracy'] = accuracy.toString();
+      if (address != null) request.fields['address'] = address;
+      if (fullAddress != null) request.fields['full_address'] = fullAddress;
+
+      var response = await request.send();
+      var responseBody = await response.stream.bytesToString();
+      var jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        return MeetingVerificationResponse.fromJson(jsonData);
+      } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return MeetingVerificationResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: jsonData['message']);
+        return MeetingVerificationResponse(
+          success: false,
+          message: jsonData['message'] ?? 'Failed to upload end photo.',
+        );
+      }
+    } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return MeetingVerificationResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Get meeting verification status
+  static Future<MeetingVerificationStatusResponse> getMeetingVerificationStatus(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/meeting-verification/$bookingId/status';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return MeetingVerificationStatusResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final responseData = jsonDecode(response.body);
+        return MeetingVerificationStatusResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
+        return MeetingVerificationStatusResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
+        return MeetingVerificationStatusResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to get verification status.',
+        );
+      }
+    } catch (e) {
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return MeetingVerificationStatusResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Helper method to upload start photo using File object
+  static Future<MeetingVerificationResponse> uploadStartPhotoWithFile({
+    required int bookingId,
+    required File photoFile,
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    String? address,
+    String? fullAddress,
+  }) async {
+    return await uploadStartPhoto(
+      bookingId: bookingId,
+      photoPath: photoFile.path,
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+      address: address,
+      fullAddress: fullAddress,
+    );
+  }
+
+  /// Process difference payment for booking updates
+  static Future<BookingResponse?> processDifferencePayment({
+    required int bookingId,
+    required double amount,
+    String paymentMethod = 'wallet',
+  }) async {
+    final url = ApiConstants.bookingProcessDifferencePayment(bookingId);
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return BookingResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      final Map<String, dynamic> body = {
+        'amount': amount,
+        'payment_method': paymentMethod,
+      };
+
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final responseData = jsonDecode(response.body);
+        return BookingResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
+        return BookingResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
+        return BookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to process difference payment.',
+        );
+      }
+    } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return BookingResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Helper method to upload end photo using File object
+  static Future<MeetingVerificationResponse> uploadEndPhotoWithFile({
+    required int bookingId,
+    required File photoFile,
+    required double latitude,
+    required double longitude,
+    double? accuracy,
+    String? address,
+    String? fullAddress,
+  }) async {
+    return await uploadEndPhoto(
+      bookingId: bookingId,
+      photoPath: photoFile.path,
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+      address: address,
+      fullAddress: fullAddress,
+    );
+  }
 }
 
+
+class MeetingVerificationResponse {
+  final bool success;
+  final String message;
+  final dynamic verificationStatus;
+  final bool? meetingStarted;
+  final bool? meetingCompleted;
+  final String? duration;
+
+  MeetingVerificationResponse({
+    required this.success,
+    required this.message,
+    this.verificationStatus,
+    this.meetingStarted,
+    this.meetingCompleted,
+    this.duration,
+  });
+
+  factory MeetingVerificationResponse.fromJson(Map<String, dynamic> json) {
+    return MeetingVerificationResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      verificationStatus: json['verification_status'],
+      meetingStarted: json['meeting_started'],
+      meetingCompleted: json['meeting_completed'],
+      duration: json['duration'],
+    );
+  }
+}
+
+class MeetingVerificationStatusResponse {
+  final bool success;
+  final String message;
+  final dynamic verificationStatus;
+
+  MeetingVerificationStatusResponse({
+    required this.success,
+    required this.message,
+    this.verificationStatus,
+  });
+
+  factory MeetingVerificationStatusResponse.fromJson(Map<String, dynamic> json) {
+    return MeetingVerificationStatusResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      verificationStatus: json['verification_status'],
+    );
+  }
+}
+
+class DisputesResponse {
+  final bool success;
+  final String message;
+  final List<dynamic> disputes;
+
+  DisputesResponse({
+    required this.success,
+    required this.message,
+    this.disputes = const [],
+  });
+
+  factory DisputesResponse.fromJson(Map<String, dynamic> json) {
+    return DisputesResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      disputes: json['data']?['disputes'] != null
+          ? List<dynamic>.from(json['data']['disputes'])
+          : [],
+    );
+  }
+}
+
+class DisputeResponse {
+  final bool success;
+  final String message;
+  final dynamic data;
+
+  DisputeResponse({
+    required this.success,
+    required this.message,
+    this.data,
+  });
+
+  factory DisputeResponse.fromJson(Map<String, dynamic> json) {
+    return DisputeResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'],
+    );
+  }
+}
+
+class DisputeDetailsResponse {
+  final bool success;
+  final String message;
+  final dynamic data;
+
+  DisputeDetailsResponse({
+    required this.success,
+    required this.message,
+    this.data,
+  });
+
+  factory DisputeDetailsResponse.fromJson(Map<String, dynamic> json) {
+    return DisputeDetailsResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'],
+    );
+  }
+}
 
 class AvailableSlotsResponse {
   final bool success;
@@ -1162,8 +1662,8 @@ class AvailableSlotsResponse {
       message: json['message'] ?? '',
       slots: json['data']?['slots'] != null
           ? (json['data']['slots'] as List)
-              .map((item) => TimeSlot.fromJson(item))
-              .toList()
+          .map((item) => TimeSlot.fromJson(item))
+          .toList()
           : [],
       date: json['data']?['date'],
     );
@@ -1341,13 +1841,13 @@ class CalendarBookingsResponse {
       message: json['message'] ?? '',
       bookings: json['data']?['bookings'] != null
           ? (json['data']['bookings'] as List)
-              .map((item) => CalendarBooking.fromJson(item))
-              .toList()
+          .map((item) => CalendarBooking.fromJson(item))
+          .toList()
           : (json['data'] is List
-              ? (json['data'] as List)
-                  .map((item) => CalendarBooking.fromJson(item))
-                  .toList()
-              : []),
+          ? (json['data'] as List)
+          .map((item) => CalendarBooking.fromJson(item))
+          .toList()
+          : []),
       date: json['data']?['date'] ?? json['date'],
     );
   }
@@ -1463,13 +1963,13 @@ class UserAvailability {
       timezone: json['timezone'],
       weeklySchedule: json['weekly_schedule'] != null
           ? (json['weekly_schedule'] as List)
-              .map((item) => DayAvailability.fromJson(item))
-              .toList()
+          .map((item) => DayAvailability.fromJson(item))
+          .toList()
           : (json['availability'] != null
-              ? (json['availability'] as List)
-                  .map((item) => DayAvailability.fromJson(item))
-                  .toList()
-              : []),
+          ? (json['availability'] as List)
+          .map((item) => DayAvailability.fromJson(item))
+          .toList()
+          : []),
       blockedDates: json['blocked_dates'] != null
           ? List<String>.from(json['blocked_dates'])
           : null,
@@ -1499,13 +1999,13 @@ class DayAvailability {
       isAvailable: json['is_available'] == true || json['available'] == true,
       slots: json['slots'] != null
           ? (json['slots'] as List)
-              .map((item) => AvailabilitySlot.fromJson(item))
-              .toList()
+          .map((item) => AvailabilitySlot.fromJson(item))
+          .toList()
           : (json['time_slots'] != null
-              ? (json['time_slots'] as List)
-                  .map((item) => AvailabilitySlot.fromJson(item))
-                  .toList()
-              : []),
+          ? (json['time_slots'] as List)
+          .map((item) => AvailabilitySlot.fromJson(item))
+          .toList()
+          : []),
     );
   }
 }
@@ -1552,8 +2052,8 @@ class UpdateBookingResponse {
       message: json['message'] ?? '',
       data: json['data'] != null ? UpdateBookingData.fromJson(json['data']) : null,
       requiresPayment: json['requires_payment'] ?? false,
-      paymentRequirement: json['payment_requirement'] != null 
-          ? PaymentRequirement.fromJson(json['payment_requirement']) 
+      paymentRequirement: json['payment_requirement'] != null
+          ? PaymentRequirement.fromJson(json['payment_requirement'])
           : null,
     );
   }
@@ -1691,8 +2191,8 @@ class CancelBookingData {
     return CancelBookingData(
       bookingId: json['booking_id'] ?? json['booking']?['id'],
       status: json['status'] ?? json['booking']?['status'],
-      refundInfo: json['refund_info'] != null 
-          ? RefundInfo.fromJson(json['refund_info']) 
+      refundInfo: json['refund_info'] != null
+          ? RefundInfo.fromJson(json['refund_info'])
           : (json['refund'] != null ? RefundInfo.fromJson(json['refund']) : null),
     );
   }

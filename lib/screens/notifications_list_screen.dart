@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
+import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../Service/notification_service.dart';
 import '../Service/provider_booking_service.dart';
@@ -20,6 +21,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   bool _isLoadingMore = false;
+  bool _isMarkingAllRead = false;
+  bool _isClearingAll = false;
   int _currentPage = 1;
   int _lastPage = 1;
   final ScrollController _scrollController = ScrollController();
@@ -96,7 +99,221 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     }
   }
 
-  String _formatDate(DateTime date) {
+  // Mark all notifications as read
+  Future<void> _markAllAsRead() async {
+    if (_isMarkingAllRead) return;
+    
+    setState(() => _isMarkingAllRead = true);
+    
+    try {
+      final response = await NotificationService.markAllAsRead();
+      
+      if (!mounted) return;
+      
+      if (response != null && response.success) {
+        // Update all notifications to mark them as read
+        setState(() {
+          for (var notification in _notifications) {
+            notification.readAt = DateTime.now();
+          }
+          _isMarkingAllRead = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('All notifications marked as read'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      } else {
+        setState(() => _isMarkingAllRead = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to mark notifications as read'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isMarkingAllRead = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  // Clear all notifications
+  Future<void> _clearAllNotifications() async {
+    // Show confirmation dialog first
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final colors = context.colors;
+        return AlertDialog(
+          backgroundColor: colors.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.delete_sweep, color: AppColors.error),
+              const SizedBox(width: 8),
+              Text('Clear All Notifications', style: TextStyle(color: colors.textPrimary)),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to clear all notifications? This action cannot be undone.',
+            style: TextStyle(color: colors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Clear All'),
+            ),
+          ],
+        );
+      },
+    );
+    
+    if (confirmed != true) return;
+    
+    setState(() => _isClearingAll = true);
+    
+    try {
+      final response = await NotificationService.clearAll();
+      
+      if (!mounted) return;
+      
+      if (response != null && response.success) {
+        setState(() {
+          _notifications.clear();
+          _isClearingAll = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('All notifications cleared'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      } else {
+        setState(() => _isClearingAll = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to clear notifications'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isClearingAll = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  // Mark individual notification as read
+  Future<void> _markNotificationAsRead(NotificationItem notification) async {
+    if (notification.readAt != null) return; // Already read
+    
+    try {
+      final response = await NotificationService.markAsRead(notification.id);
+      
+      if (!mounted) return;
+      
+      if (response != null && response.success) {
+        setState(() {
+          notification.readAt = DateTime.now();
+        });
+      }
+    } catch (e) {
+      // Silent fail for individual mark as read
+    }
+  }
+
+  // Delete individual notification
+  Future<void> _deleteNotification(NotificationItem notification) async {
+    try {
+      final response = await NotificationService.deleteNotification(notification.id);
+      
+      if (!mounted) return;
+      
+      if (response != null && response.success) {
+        setState(() {
+          _notifications.remove(notification);
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Notification deleted'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: Colors.white,
+              onPressed: () {
+                // Reload notifications to restore
+                _loadNotifications();
+              },
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to delete notification'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'N/A';
     final now = DateTime.now();
     final diff = now.difference(date);
 
@@ -193,6 +410,40 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     return BaseScreen(
       title: 'Notifications',
       showBackButton: true,
+      actions: [
+        // Mark All as Read button
+        if (_notifications.isNotEmpty && !_isMarkingAllRead)
+          IconButton(
+            icon: Icon(Icons.done_all, color: primaryColor, size: iconSize),
+            tooltip: 'Mark all as read',
+            onPressed: _markAllAsRead,
+          ),
+        if (_isMarkingAllRead)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SizedBox(
+              width: iconSize,
+              height: iconSize,
+              child: CircularProgressIndicator(color: primaryColor, strokeWidth: 2),
+            ),
+          ),
+        // Clear All button
+        if (_notifications.isNotEmpty && !_isClearingAll)
+          IconButton(
+            icon: Icon(Icons.delete_sweep, color: AppColors.error, size: iconSize),
+            tooltip: 'Clear all notifications',
+            onPressed: _clearAllNotifications,
+          ),
+        if (_isClearingAll)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SizedBox(
+              width: iconSize,
+              height: iconSize,
+              child: CircularProgressIndicator(color: AppColors.error, strokeWidth: 2),
+            ),
+          ),
+      ],
       body: _isLoading
           ? Center(
         child: CircularProgressIndicator(color: primaryColor),
@@ -217,17 +468,77 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
             }
 
             final notification = _notifications[index];
-            return _buildNotificationCard(
-              notification,
-              colors,
-              primaryColor,
-              isDark,
-              titleFontSize,
-              messageFontSize,
-              timeFontSize,
-              iconSize,
-              avatarRadius,
-              padding,
+            // Wrap with Dismissible for swipe actions
+            return Dismissible(
+              key: Key('notification_${notification.id}'),
+              // Swipe left to delete
+              direction: DismissDirection.horizontal,
+              background: Container(
+                margin: EdgeInsets.only(bottom: padding * 0.75),
+                decoration: BoxDecoration(
+                  color: AppColors.success,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Icon(Icons.done, color: Colors.white, size: iconSize),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Mark as Read',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: messageFontSize),
+                    ),
+                  ],
+                ),
+              ),
+              secondaryBackground: Container(
+                margin: EdgeInsets.only(bottom: padding * 0.75),
+                decoration: BoxDecoration(
+                  color: AppColors.error,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Delete',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: messageFontSize),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.delete, color: Colors.white, size: iconSize),
+                  ],
+                ),
+              ),
+              confirmDismiss: (direction) async {
+                if (direction == DismissDirection.startToEnd) {
+                  // Swipe right - Mark as read
+                  await _markNotificationAsRead(notification);
+                  return false; // Don't dismiss, just mark as read
+                } else {
+                  // Swipe left - Delete
+                  return true;
+                }
+              },
+              onDismissed: (direction) {
+                if (direction == DismissDirection.endToStart) {
+                  _deleteNotification(notification);
+                }
+              },
+              child: _buildNotificationCard(
+                notification,
+                colors,
+                primaryColor,
+                isDark,
+                titleFontSize,
+                messageFontSize,
+                timeFontSize,
+                iconSize,
+                avatarRadius,
+                padding,
+              ),
             );
           },
         ),
@@ -290,13 +601,40 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
       double padding,
       ) {
     final notificationColor = _getNotificationColor(notification.type, primaryColor);
-    final isRead = notification.readAt != DateTime.now();
-    final isBookingConfirmed = notification.type.toLowerCase() == 'booking_confirmed';
-    final isBookingRequest = notification.type.toLowerCase() == 'booking_request';
-    final status = notification.data.status?.toLowerCase();
-    final providerStatus = notification.data.providerStatus?.toLowerCase();
-    final isPendingBooking = (status == 'pending' && (providerStatus == null || providerStatus.isEmpty || providerStatus == 'pending')) ||
-        (isBookingRequest && status == null && providerStatus == null);
+    final isRead = notification.readAt != null;
+    final notificationType = notification.type.toLowerCase();
+    final isBookingRequest = notificationType == 'booking_request';
+    final status = notification.data?.status?.toLowerCase();
+    final providerStatus = notification.data?.providerStatus?.toLowerCase();
+    
+    // booking_confirmed: Show Cancel + Update buttons (booking created, waiting for provider)
+    // Also check for variations like booking_created, bookingconfirmed, etc.
+    // Check if booking is confirmed - either notification type is 'booking_confirmed' or status is 'confirmed'
+    final isBookingConfirmed = notificationType.contains('booking_confirmed') || status?.toLowerCase() == 'confirmed';
+    
+    // DEBUG: Print notification type and status to see what's coming
+    print('🔔 NOTIFICATION DEBUG: Type="$notificationType", Status="$status", ProviderStatus="$providerStatus", BookingId=${notification.data?.bookingId}, isBookingConfirmed=$isBookingConfirmed, DataStatus="${notification.data?.status}"');
+    
+    // Additional debug info for the notification data
+    print('📋 NOTIFICATION DATA: ID=${notification.id}, Title="${notification.title}", Message="${notification.message}", Date=${notification.data?.date}, StartTime=${notification.data?.startTime}, EndTime=${notification.data?.endTime}, PaymentStatus=${notification.data?.paymentStatus}');
+    
+    // booking_accepted: Show Start button (provider accepted the booking)
+    final isBookingAccepted = notificationType == 'booking_accepted' || 
+        providerStatus == 'accepted' || 
+        status == 'accepted';
+    
+    // Show Accept/Reject buttons only when:
+    // 1. status is 'pending' AND providerStatus is null/empty (initial request, provider hasn't acted yet)
+    // 2. OR when it's a booking_request with null status and providerStatus (fresh notification)
+    // Note: When providerStatus is 'accepted', 'rejected', or 'blocked' - don't show buttons
+    final hasProviderActed = providerStatus == 'accepted' || 
+        providerStatus == 'rejected' || 
+        providerStatus == 'blocked' ||
+        providerStatus == 'pending';
+    final isPendingBooking = !hasProviderActed && (
+        (status == 'pending' && (providerStatus == null || providerStatus.isEmpty)) ||
+        (isBookingRequest && status == null && providerStatus == null)
+    );
     return Card(
       margin: EdgeInsets.only(bottom: padding * 0.75),
       elevation: isRead ? 1 : 3,
@@ -400,39 +738,191 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
               if (isBookingConfirmed) ...[
                 const SizedBox(height: 12),
+                // Booking Details Card
+                Container(
+                  padding: EdgeInsets.all(padding * 0.75),
+                  decoration: BoxDecoration(
+                    color: colors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colors.textTertiary.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Booking ID and Status Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Booking #${notification.data?.bookingId ?? 0}',
+                            style: TextStyle(
+                              fontSize: titleFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              (notification.data?.status ?? 'CONFIRMED').toUpperCase(),
+                              style: TextStyle(
+                                fontSize: timeFontSize,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: padding * 0.5),
+                      // Provider Name
+                      if (notification.data?.providerName != null && notification.data!.providerName!.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            Icon(Icons.person_outline, size: iconSize * 0.7, color: colors.textSecondary),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                notification.data!.providerName!,
+                                style: TextStyle(
+                                  fontSize: messageFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textPrimary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: padding * 0.3),
+                      ],
+                      // Date
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: iconSize * 0.7, color: colors.textSecondary),
+                          SizedBox(width: 6),
+                          Text(
+                            _formatDate(notification.data?.date),
+                            style: TextStyle(fontSize: messageFontSize, color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: padding * 0.3),
+                      // Time (Start - End) or Duration
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, size: iconSize * 0.7, color: colors.textSecondary),
+                          SizedBox(width: 6),
+                          Text(
+                            (notification.data?.startTime != null && notification.data?.endTime != null)
+                                ? '${notification.data?.startTime} - ${notification.data?.endTime}'
+                                : '${notification.data?.durationHours ?? 0} hours',
+                            style: TextStyle(fontSize: messageFontSize, color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: padding * 0.3),
+                      // Meeting Location
+                      if (notification.data?.meetingLocation != null && notification.data!.meetingLocation!.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            Icon(Icons.location_on_outlined, size: iconSize * 0.7, color: colors.textSecondary),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                notification.data!.meetingLocation!,
+                                style: TextStyle(fontSize: messageFontSize, color: colors.textSecondary),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: padding * 0.3),
+                      ],
+                      // Amount and Payment Status Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.currency_rupee, size: iconSize * 0.7, color: colors.textSecondary),
+                              SizedBox(width: 6),
+                              Text(
+                                '₹${notification.data?.amount ?? '0'}',
+                                style: TextStyle(
+                                  fontSize: messageFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: (notification.data?.paymentStatus?.toLowerCase() == 'paid')
+                                  ? AppColors.success.withOpacity(0.1)
+                                  : AppColors.warning.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              (notification.data?.paymentStatus ?? 'PENDING').toUpperCase(),
+                              style: TextStyle(
+                                fontSize: timeFontSize,
+                                fontWeight: FontWeight.w600,
+                                color: (notification.data?.paymentStatus?.toLowerCase() == 'paid')
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: padding * 0.75),
+                // Action Buttons Row - Cancel and Update (for booking_confirmed)
                 Row(
                   children: [
+                    // Cancel Booking Button - Only show for confirmed bookings
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _onUpdateBooking(notification),
-                        icon: Icon(Icons.edit, size: iconSize * 0.8),
+                        onPressed: () => _onCancelBooking(notification),
+                        icon: Icon(Icons.cancel_outlined, size: iconSize * 0.7),
                         label: Text(
-                          'Update Booking',
-                          style: TextStyle(fontSize: messageFontSize),
+                          'Cancel',
+                          style: TextStyle(fontSize: messageFontSize * 0.9),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: primaryColor,
-                          side: BorderSide(color: primaryColor),
-                          padding: EdgeInsets.symmetric(vertical: padding * 0.6),
+                          foregroundColor: AppColors.error,
+                          side: BorderSide(color: AppColors.error),
+                          padding: EdgeInsets.symmetric(vertical: padding * 0.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                       ),
                     ),
-                    SizedBox(width: padding * 0.75),
+                    SizedBox(width: padding * 0.5),
+                    // Update Booking Button - Only show for confirmed bookings
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _onDeleteBooking(notification),
-                        icon: Icon(Icons.delete_outline, size: iconSize * 0.8),
+                        onPressed: () => _onUpdateBooking(notification),
+                        icon: Icon(Icons.edit_outlined, size: iconSize * 0.7),
                         label: Text(
-                          'Delete Booking',
-                          style: TextStyle(fontSize: messageFontSize),
+                          'Update',
+                          style: TextStyle(fontSize: messageFontSize * 0.9),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          side: BorderSide(color: AppColors.error),
-                          padding: EdgeInsets.symmetric(vertical: padding * 0.6),
+                          foregroundColor: primaryColor,
+                          side: BorderSide(color: primaryColor),
+                          padding: EdgeInsets.symmetric(vertical: padding * 0.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -441,6 +931,197 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                     ),
                   ],
                 ),
+              ],
+
+              // booking_accepted: Show Start Meeting button
+              if (isBookingAccepted && !isBookingConfirmed) ...[
+                const SizedBox(height: 12),
+                // Booking Details Card for Accepted Booking
+                Container(
+                  padding: EdgeInsets.all(padding * 0.75),
+                  decoration: BoxDecoration(
+                    color: colors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Booking ID and Status Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Booking #${notification.data?.bookingId ?? 0}',
+                            style: TextStyle(
+                              fontSize: titleFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'ACCEPTED',
+                              style: TextStyle(
+                                fontSize: timeFontSize,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: padding * 0.5),
+                      // Provider Name
+                      if (notification.data?.providerName != null && notification.data!.providerName!.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            Icon(Icons.person_outline, size: iconSize * 0.7, color: colors.textSecondary),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                notification.data!.providerName!,
+                                style: TextStyle(
+                                  fontSize: messageFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textPrimary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: padding * 0.3),
+                      ],
+                      // Date
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: iconSize * 0.7, color: colors.textSecondary),
+                          SizedBox(width: 6),
+                          Text(
+                            _formatDate(notification.data?.date),
+                            style: TextStyle(fontSize: messageFontSize, color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: padding * 0.3),
+                      // Time (Start - End) or Duration
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, size: iconSize * 0.7, color: colors.textSecondary),
+                          SizedBox(width: 6),
+                          Text(
+                            (notification.data?.startTime != null && notification.data?.endTime != null)
+                                ? '${notification.data?.startTime} - ${notification.data?.endTime}'
+                                : '${notification.data?.durationHours ?? 0} hours',
+                            style: TextStyle(fontSize: messageFontSize, color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: padding * 0.3),
+                      // Meeting Location
+                      if (notification.data?.meetingLocation != null && notification.data!.meetingLocation!.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            Icon(Icons.location_on_outlined, size: iconSize * 0.7, color: colors.textSecondary),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                notification.data!.meetingLocation!,
+                                style: TextStyle(fontSize: messageFontSize, color: colors.textSecondary),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: padding * 0.3),
+                      ],
+                      // Amount and Payment Status Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.currency_rupee, size: iconSize * 0.7, color: colors.textSecondary),
+                              SizedBox(width: 6),
+                              Text(
+                                '₹${notification.data?.amount ?? '0'}',
+                                style: TextStyle(
+                                  fontSize: messageFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: (notification.data?.paymentStatus?.toLowerCase() == 'paid')
+                                  ? AppColors.success.withOpacity(0.1)
+                                  : AppColors.warning.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              (notification.data?.paymentStatus ?? 'PENDING').toUpperCase(),
+                              style: TextStyle(
+                                fontSize: timeFontSize,
+                                fontWeight: FontWeight.w600,
+                                color: (notification.data?.paymentStatus?.toLowerCase() == 'paid')
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: padding * 0.75),
+                // Start Meeting Button - Full width, enabled only when payment is paid
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (notification.data?.paymentStatus?.toLowerCase() == 'paid')
+                        ? () => _onStartMeeting(notification)
+                        : null,
+                    icon: Icon(Icons.play_circle_outline, size: iconSize * 0.8),
+                    label: Text(
+                      'Start Meeting',
+                      style: TextStyle(fontSize: messageFontSize),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: AppColors.white,
+                      disabledBackgroundColor: colors.textTertiary.withOpacity(0.3),
+                      disabledForegroundColor: colors.textTertiary,
+                      padding: EdgeInsets.symmetric(vertical: padding * 0.6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                // Show message if payment is pending
+                if (notification.data?.paymentStatus?.toLowerCase() != 'paid') ...[
+                  SizedBox(height: padding * 0.5),
+                  Text(
+                    'Complete payment to start the meeting',
+                    style: TextStyle(
+                      fontSize: timeFontSize,
+                      color: AppColors.warning,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ],
 
               if (isBookingRequest && isPendingBooking) ...[
@@ -511,9 +1192,9 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: padding, vertical: padding * 0.5),
                   decoration: BoxDecoration(
-                    color: notification.data.status?.toLowerCase() == 'accepted' 
+                    color: notification.data?.status?.toLowerCase() == 'accepted' 
                         ? AppColors.success.withOpacity(0.1)
-                        : notification.data.status?.toLowerCase() == 'rejected'
+                        : notification.data?.status?.toLowerCase() == 'rejected'
                             ? AppColors.error.withOpacity(0.1)
                             : colors.textTertiary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -522,27 +1203,27 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        notification.data.status?.toLowerCase() == 'accepted' 
+                        notification.data?.status?.toLowerCase() == 'accepted' 
                             ? Icons.check_circle
-                            : notification.data.status?.toLowerCase() == 'rejected'
+                            : notification.data?.status?.toLowerCase() == 'rejected'
                                 ? Icons.cancel
                                 : Icons.info,
                         size: iconSize * 0.8,
-                        color: notification.data.status?.toLowerCase() == 'accepted' 
+                        color: notification.data?.status?.toLowerCase() == 'accepted' 
                             ? AppColors.success
-                            : notification.data.status?.toLowerCase() == 'rejected'
+                            : notification.data?.status?.toLowerCase() == 'rejected'
                                 ? AppColors.error
                                 : colors.textTertiary,
                       ),
                       SizedBox(width: padding * 0.3),
                       Text(
-                        'Status: ${notification.data.status?.toUpperCase() ?? 'UNKNOWN'}',
+                        'Status: ${notification.data?.status?.toUpperCase() ?? 'UNKNOWN'}',
                         style: TextStyle(
                           fontSize: messageFontSize,
                           fontWeight: FontWeight.w600,
-                          color: notification.data.status?.toLowerCase() == 'accepted' 
+                          color: notification.data?.status?.toLowerCase() == 'accepted' 
                               ? AppColors.success
-                              : notification.data.status?.toLowerCase() == 'rejected'
+                              : notification.data?.status?.toLowerCase() == 'rejected'
                                   ? AppColors.error
                                   : colors.textTertiary,
                         ),
@@ -586,13 +1267,16 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   }
 
   void _onUpdateBooking(NotificationItem notification) {
+    // Handle update booking functionality for confirmed bookings
+    print('📝 Update Booking called for ID: ${notification.data?.bookingId}, Status: ${notification.data?.status}');
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
     final bookingData = notification.data;
+    if (bookingData == null) return;
 
     final notesController = TextEditingController(text: bookingData.notes);
-    DateTime selectedDate = bookingData.date;
+    DateTime selectedDate = bookingData.date ?? DateTime.now();
     
     final allTimeSlots = _generateTimeSlots();
     
@@ -606,6 +1290,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
       selectedEndTime = null;
     }
 
+    print('📝 Showing update dialog for booking ID: ${notification.data?.bookingId}, Date: ${selectedDate}, StartTime: ${selectedStartTime}, EndTime: ${selectedEndTime}');
+    
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -618,7 +1304,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Update Booking #${bookingData.bookingId}',
+                  'Update Booking #${bookingData.bookingId ?? 0}',
                   style: TextStyle(color: colors.textPrimary, fontSize: 18),
                 ),
               ),
@@ -792,13 +1478,15 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
             ElevatedButton(
               onPressed: (selectedStartTime == null || selectedEndTime == null) ? null : () {
                 Navigator.pop(dialogContext);
-                _updateBooking(
-                  bookingData.bookingId,
-                  bookingDate: selectedDate,
-                  startTime: selectedStartTime,
-                  endTime: selectedEndTime,
-                  notes: notesController.text.isNotEmpty ? notesController.text : null,
-                );
+                if (bookingData.bookingId != null) {
+                  _updateBooking(
+                    bookingData.bookingId!,
+                    bookingDate: selectedDate,
+                    startTime: selectedStartTime,
+                    endTime: selectedEndTime,
+                    notes: notesController.text.isNotEmpty ? notesController.text : null,
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
@@ -819,6 +1507,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         String? endTime,
         String? notes,
       }) async {
+    // Update booking functionality for confirmed bookings
+    print('🔄 API Update Booking called for ID: $bookingId, Date: $bookingDate, Start: $startTime, End: $endTime');
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     showDialog(
@@ -1074,7 +1764,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
         if (mounted) Navigator.pop(context);
 
-        if (response.success) {
+        if (response != null && response.success) {
           scaffoldMessenger.showSnackBar(
             SnackBar(
               content: Row(
@@ -1096,7 +1786,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         } else {
           scaffoldMessenger.showSnackBar(
             SnackBar(
-              content: Text(response.message.isNotEmpty ? response.message : 'Payment failed'),
+              content: Text(response?.message?.isNotEmpty == true ? response!.message : 'Payment failed'),
               backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1183,7 +1873,11 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   void _onDeleteBooking(NotificationItem notification) {
     final colors = context.colors;
     final bookingData = notification.data;
+    if (bookingData == null) return;
 
+    // Debug print for this method
+    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1221,7 +1915,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Booking ID: #${bookingData.bookingId}',
+                    'Booking ID: #${bookingData.bookingId ?? 0}',
                     style: TextStyle(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 4),
@@ -1256,7 +1950,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _deleteBooking(bookingData.bookingId);
+              if (bookingData.bookingId != null) _deleteBooking(bookingData.bookingId!);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
@@ -1270,6 +1964,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   }
 
   Future<void> _deleteBooking(int bookingId) async {
+    // Cancel/delete booking functionality for confirmed bookings
+    print('🗑️ API Cancel Booking called for ID: $bookingId');
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     showDialog(
@@ -1351,10 +2047,255 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     }
   }
 
+  void _onCancelBooking(NotificationItem notification) {
+    // Handle cancel booking functionality for confirmed bookings
+    final colors = context.colors;
+    final bookingData = notification.data;
+    if (bookingData == null) return;
+    
+    // Debug print for cancel booking
+    print('❌ Cancel Booking called for ID: ${notification.data?.bookingId}, Status: ${notification.data?.status}');
+    print('📅 Booking details: Date=${bookingData.date}, Start=${bookingData.startTime}, End=${bookingData.endTime}');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.cancel, color: AppColors.error),
+            const SizedBox(width: 8),
+            Text(
+              'Cancel Booking',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to cancel this booking?',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Booking ID: #${bookingData.bookingId ?? 0}',
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Date: ${_formatDate(bookingData.date)}',
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Amount: ₹${bookingData.amount ?? '0'}',
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            if (bookingData.paymentStatus?.toLowerCase() == 'paid') ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.account_balance_wallet, color: AppColors.success, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Amount will be refunded to your wallet',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('No, Keep It', style: TextStyle(color: colors.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (bookingData.bookingId != null) _deleteBooking(bookingData.bookingId!);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onStartMeeting(NotificationItem notification) {
+    final colors = context.colors;
+    final bookingData = notification.data;
+    if (bookingData == null) return;
+
+    // Debug print for this method
+    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.play_circle, color: AppColors.success),
+            const SizedBox(width: 8),
+            Text(
+              'Start Meeting',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you ready to start this meeting?',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Booking ID: #${bookingData.bookingId ?? 0}',
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Date: ${_formatDate(bookingData.date)}',
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Duration: ${bookingData.durationHours ?? 0} hours',
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                  if (bookingData.meetingLocation != null && bookingData.meetingLocation!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Location: ${bookingData.meetingLocation ?? ''}',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You will need to take a photo to verify the meeting has started.',
+              style: TextStyle(
+                color: colors.textTertiary,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Not Yet', style: TextStyle(color: colors.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (bookingData.bookingId != null) _startMeeting(bookingData.bookingId!);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Start Meeting'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startMeeting(int bookingId) async {
+    // Navigate to my_bookings_screen where the actual meeting start functionality exists
+    // Or show a message to go to My Bookings
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('Please go to My Bookings to start the meeting with photo verification'),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Go',
+          textColor: Colors.white,
+          onPressed: () {
+            // Navigate to My Bookings
+            Navigator.of(context).pushNamed('/my-bookings');
+          },
+        ),
+      ),
+    );
+  }
+
   void _onAcceptBooking(NotificationItem notification) {
     final colors = context.colors;
     final bookingData = notification.data;
+    if (bookingData == null) return;
 
+    // Debug print for this method
+    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1392,12 +2333,12 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Booking ID: #${bookingData.bookingId}',
+                    'Booking ID: #${bookingData.bookingId ?? 0}',
                     style: TextStyle(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Client ID: ${bookingData.clientId}',
+                    'Client ID: ${bookingData.clientId ?? 0}',
                     style: TextStyle(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 4),
@@ -1407,13 +2348,13 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Duration: ${bookingData.durationHours} hours',
+                    'Duration: ${bookingData.durationHours ?? 0} hours',
                     style: TextStyle(color: colors.textSecondary),
                   ),
-                  if (bookingData.meetingLocation.isNotEmpty) ...[
+                  if (bookingData.meetingLocation != null && bookingData.meetingLocation!.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      'Location: ${bookingData.meetingLocation}',
+                      'Location: ${bookingData.meetingLocation ?? ''}',
                       style: TextStyle(color: colors.textSecondary),
                     ),
                   ],
@@ -1430,7 +2371,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _acceptBooking(bookingData.bookingId);
+              if (bookingData.bookingId != null) _acceptBooking(bookingData.bookingId!);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
@@ -1492,7 +2433,12 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   void _onRejectBooking(NotificationItem notification) {
     final colors = context.colors;
     final bookingData = notification.data;
+    if (bookingData == null) return;
+    final reasonController = TextEditingController();
 
+    // Debug print for this method
+    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1508,54 +2454,90 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to reject this booking request?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to reject this booking request?',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.textTertiary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.textTertiary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Booking ID: #${bookingData.bookingId ?? 0}',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Client ID: ${bookingData.clientId ?? 0}',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Date: ${_formatDate(bookingData.date)}',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Booking ID: #${bookingData.bookingId}',
-                    style: TextStyle(color: colors.textSecondary),
+              const SizedBox(height: 16),
+              Text(
+                'Reason for rejection (optional)',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Enter reason for rejecting this booking...',
+                  hintStyle: TextStyle(color: colors.textTertiary, fontSize: 14),
+                  filled: true,
+                  fillColor: colors.inputBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: colors.inputBorder),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Client ID: ${bookingData.clientId}',
-                    style: TextStyle(color: colors.textSecondary),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: colors.inputBorder),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Date: ${_formatDate(bookingData.date)}',
-                    style: TextStyle(color: colors.textSecondary),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: colors.textSecondary, width: 1.5),
                   ),
-                ],
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+                style: TextStyle(color: colors.textPrimary, fontSize: 14),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'The client will be notified of your decision.',
-              style: TextStyle(
-                color: colors.textTertiary,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
+              const SizedBox(height: 12),
+              Text(
+                'The client will be notified of your decision.',
+                style: TextStyle(
+                  color: colors.textTertiary,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1565,7 +2547,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _rejectBooking(bookingData.bookingId);
+              final reason = reasonController.text.trim();
+              if (bookingData.bookingId != null) _rejectBooking(bookingData.bookingId!, reason: reason.isNotEmpty ? reason : null);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: colors.textSecondary,
@@ -1608,111 +2591,168 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   void _onBlockUser(NotificationItem notification) {
     final colors = context.colors;
     final bookingData = notification.data;
+    if (bookingData == null) return;
 
+    // Debug print for this method
+    print('🔍 Block User called - Notification ID: ${notification.id}, Type: ${notification.type}');
+    print('🔍 Booking Data - bookingId: ${bookingData.bookingId}, clientId: ${bookingData.clientId}');
+    
+    // TextEditingController for reason input
+    final reasonController = TextEditingController();
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.block, color: AppColors.error),
-            const SizedBox(width: 8),
-            Text(
-              'Block User',
-              style: TextStyle(color: colors.textPrimary),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: colors.card,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.block, color: AppColors.error),
+                const SizedBox(width: 8),
+                Text(
+                  'Block User',
+                  style: TextStyle(color: colors.textPrimary),
+                ),
+              ],
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to block this user?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
+            content: SingleChildScrollView(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Client ID: ${bookingData.clientId}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This will:',
+                    'Are you sure you want to block this user?',
                     style: TextStyle(
-                      color: AppColors.error,
+                      color: colors.textPrimary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '• Reject this booking request',
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                  const SizedBox(height: 12),
+                  
+                  // Reason input field - Required by API
+                  TextField(
+                    controller: reasonController,
+                    maxLines: 3,
+                    maxLength: 500,
+                    decoration: InputDecoration(
+                      labelText: 'Reason for blocking *',
+                      hintText: 'e.g., Inappropriate behavior, No-show, etc.',
+                      labelStyle: TextStyle(color: colors.textSecondary),
+                      hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12),
+                      filled: true,
+                      fillColor: colors.card,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: AppColors.error),
+                      ),
+                      counterStyle: TextStyle(color: colors.textTertiary),
+                    ),
+                    style: TextStyle(color: colors.textPrimary),
+                    onChanged: (_) => setDialogState(() {}),
                   ),
-                  Text(
-                    '• Prevent future booking requests',
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                  const SizedBox(height: 12),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'This will:',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '• Reject this booking request',
+                          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                        ),
+                        Text(
+                          '• Prevent future booking requests',
+                          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                        ),
+                        Text(
+                          '• Hide your profile from this user',
+                          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 12),
                   Text(
-                    '• Hide your profile from this user',
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                    'This action can be undone from Settings.',
+                    style: TextStyle(
+                      color: colors.textTertiary,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'This action can be undone from Settings.',
-              style: TextStyle(
-                color: colors.textTertiary,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
+            actions: [
+              TextButton(
+                onPressed: () {
+                  reasonController.dispose();
+                  Navigator.pop(dialogContext);
+                },
+                child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _blockUser(bookingData.clientId, bookingData.bookingId);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
-            ),
-            child: const Text('Block'),
-          ),
-        ],
+              ElevatedButton(
+                onPressed: reasonController.text.trim().isEmpty
+                    ? null
+                    : () {
+                        final reason = reasonController.text.trim();
+                        reasonController.dispose();
+                        Navigator.pop(dialogContext);
+                        if (bookingData.bookingId != null) {
+                          _blockUser(bookingData.bookingId!, reason);
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: AppColors.white,
+                  disabledBackgroundColor: AppColors.gray400,
+                  disabledForegroundColor: AppColors.white,
+                ),
+                child: const Text('Block'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Future<void> _blockUser(int clientId, int bookingId) async {
+  // Block user API call - POST /provider/booking/{id}/block with reason
+  Future<void> _blockUser(int bookingId, String reason) async {
+    print('🔍 Calling blockClient API - bookingId: $bookingId, reason: $reason');
+    
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    final response = await ProviderBookingService.blockClient(bookingId);
+    final response = await ProviderBookingService.blockClient(bookingId, reason: reason);
+
+    print('🔍 Block API Response - success: ${response.success}, message: ${response.message}');
 
     if (mounted) {
       Navigator.of(context).pop();
@@ -1720,7 +2760,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(response.message),
-          backgroundColor: response.success ? AppColors.error : Colors.grey,
+          backgroundColor: response.success ? AppColors.success : AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
@@ -1753,6 +2793,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
 
+    print('📝 Showing notification details for ID: ${notification.id}, Type: ${notification.type}');
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

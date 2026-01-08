@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/getprofilemodel.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class ProfileService {
   static Future<String?> _getToken() async {
@@ -11,16 +12,19 @@ class ProfileService {
   }
 
   static Future<GetProfileModel?> getProfile() async {
+    final url = '${ApiConstants.baseUrl}/profile';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/profile'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -28,36 +32,37 @@ class ProfileService {
         },
       );
 
-      
-      
-      
-      
-
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return GetProfileModel.fromJson(data);
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<GetProfileModel?> getUserProfile(int userId) async {
+    final url = '${ApiConstants.baseUrl}/users/$userId';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/users/$userId'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -65,21 +70,19 @@ class ProfileService {
         },
       );
 
-      
-      
-      
-      
-
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return GetProfileModel.fromJson(data);
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
@@ -108,11 +111,11 @@ class ProfileService {
     String? state,
     String? country,
   }) async {
+    final url = '${ApiConstants.baseUrl}/profile';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
@@ -141,13 +144,10 @@ class ProfileService {
       if (state != null) body['state'] = state;
       if (country != null) body['country'] = country;
 
-      
-      
-      
-
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
       final response = await http.put(
-        Uri.parse('${ApiConstants.baseUrl}/profile'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -156,16 +156,12 @@ class ProfileService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return data;
       } else {
-        
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to update profile');
         try {
           return jsonDecode(response.body);
         } catch (_) {
@@ -173,7 +169,7 @@ class ProfileService {
         }
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -190,11 +186,11 @@ class ProfileService {
     bool? interestedInSugarPartner,
     bool? hideSugarPartnerNotifications,
   }) async {
+    final url = '${ApiConstants.baseUrl}/profile/privacy-settings';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
@@ -211,13 +207,10 @@ class ProfileService {
       if (interestedInSugarPartner != null) body['interested_in_sugar_partner'] = interestedInSugarPartner;
       if (hideSugarPartnerNotifications != null) body['hide_sugar_partner_notifications'] = hideSugarPartnerNotifications;
 
-      
-      
-      
-
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
       final response = await http.put(
-        Uri.parse('${ApiConstants.baseUrl}/profile/privacy-settings'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -226,16 +219,12 @@ class ProfileService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return data;
       } else {
-        
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to update privacy settings');
         try {
           return jsonDecode(response.body);
         } catch (_) {
@@ -243,7 +232,7 @@ class ProfileService {
         }
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -253,6 +242,7 @@ class ProfileService {
   static Future<ProfileUpdateResponse> updateCoupleActivitySettings({
     required bool isCoupleActivityEnabled,
   }) async {
+    final url = '${ApiConstants.baseUrl}/profile/couple-activity';
     try {
       final token = await _getToken();
 
@@ -267,8 +257,10 @@ class ProfileService {
         'is_couple_activity_enabled': isCoupleActivityEnabled,
       };
 
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
+
       final response = await http.put(
-        Uri.parse('${ApiConstants.baseUrl}/profile/couple-activity'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -280,19 +272,23 @@ class ProfileService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return ProfileUpdateResponse.fromJson(responseData);
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 403, error: responseData['message'] ?? 'Couple Activity feature not available');
         return ProfileUpdateResponse(
           success: false,
           message: responseData['message'] ?? 'Couple Activity feature is not available.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to update couple activity settings');
         return ProfileUpdateResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to update couple activity settings.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return ProfileUpdateResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -308,6 +304,7 @@ class ProfileService {
     String? sugarPartnerBio,
     String? sugarPartnerExpectations,
   }) async {
+    final url = '${ApiConstants.baseUrl}/profile/sugar-partner';
     try {
       final token = await _getToken();
 
@@ -324,8 +321,10 @@ class ProfileService {
       if (sugarPartnerBio != null) body['sugar_partner_bio'] = sugarPartnerBio;
       if (sugarPartnerExpectations != null) body['sugar_partner_expectations'] = sugarPartnerExpectations;
 
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
+
       final response = await http.put(
-        Uri.parse('${ApiConstants.baseUrl}/profile/sugar-partner'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -337,26 +336,31 @@ class ProfileService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return ProfileUpdateResponse.fromJson(responseData);
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 403, error: responseData['message'] ?? 'Sugar Partner feature not available');
         return ProfileUpdateResponse(
           success: false,
           message: responseData['message'] ?? 'Sugar Partner feature is not available.',
         );
       } else if (response.statusCode == 422) {
         // Validation error - likely missing gallery images
+        ApiLogger.logApiError(endpoint: url, statusCode: 422, error: responseData['message'] ?? 'Validation error');
         return ProfileUpdateResponse(
           success: false,
           message: responseData['message'] ?? 'Please upload photos to your gallery first.',
           errors: responseData['errors'],
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to update sugar partner settings');
         return ProfileUpdateResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to update sugar partner settings.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return ProfileUpdateResponse(
         success: false,
         message: 'Network error. Please check your connection.',

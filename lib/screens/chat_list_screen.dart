@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../Service/chat_service.dart';
+import '../Service/message_service.dart';
 import '../model/getchatmodel.dart';
 import '../routes/app_routes.dart';
+import 'blocked_users_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -19,6 +21,7 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
   List<Chat> _chats = [];
   bool _isLoading = true;
   String? _errorMessage;
+  int _blockedUsersCount = 0;
   
   @override
   void initState() {
@@ -38,6 +41,7 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
     );
     
     _loadChats();
+    _loadBlockedUsersCount();
   }
 
   @override
@@ -45,6 +49,20 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       _loadChats();
+      _loadBlockedUsersCount();
+    }
+  }
+
+  Future<void> _loadBlockedUsersCount() async {
+    try {
+      final response = await MessageService.getBlockedUsers();
+      if (mounted && response != null && response.success) {
+        setState(() {
+          _blockedUsersCount = response.blockedUsers.length;
+        });
+      }
+    } catch (e) {
+      // Silently fail - not critical
     }
   }
 
@@ -190,9 +208,6 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
     final listPadding = isDesktop ? 24.0 : isTablet ? 20.0 : isSmallScreen ? 10.0 : 16.0;
     
     final actionIconSize = isDesktop ? 28.0 : isTablet ? 26.0 : isSmallScreen ? 20.0 : 24.0;
-    
-    final fabIconSize = isDesktop ? 28.0 : isTablet ? 26.0 : isSmallScreen ? 20.0 : 24.0;
-    
     final emptyIconSize = isDesktop ? 80.0 : isTablet ? 72.0 : isSmallScreen ? 52.0 : 64.0;
     final emptyTitleSize = isDesktop ? 22.0 : isTablet ? 20.0 : isSmallScreen ? 15.0 : 18.0;
     final emptySubtitleSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;
@@ -226,6 +241,48 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
       title: 'Chats',
       showBackButton: false,
       actions: [
+        // Blocked Users button with badge
+        Stack(
+          children: [
+            IconButton(
+              icon: Icon(Icons.block, size: actionIconSize),
+              tooltip: 'Blocked Users',
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const BlockedUsersScreen()),
+                );
+                // Refresh blocked users count when returning
+                _loadBlockedUsersCount();
+              },
+            ),
+            if (_blockedUsersCount > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  child: Text(
+                    _blockedUsersCount > 99 ? '99+' : _blockedUsersCount.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
         IconButton(
           icon: Icon(Icons.search, size: actionIconSize),
           onPressed: () {
@@ -286,15 +343,7 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
                           ),
                   ),
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('New chat feature coming soon')),
-          );
-        },
-        backgroundColor: primaryColor,
-        child: Icon(Icons.chat, size: fabIconSize),
-      ),
+      // Floating action button removed as per requirement
     );
   }
   
@@ -437,6 +486,7 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
             profileImage: avatarUrl,
             meetingTime: chat.bookingDate,
             bookingId: chat.bookingId,
+            otherUserId: chat.otherUser.id,
           );
           // Reload chats when returning from chat screen
           _loadChats();

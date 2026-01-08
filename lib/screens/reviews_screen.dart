@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
-import '../Service/review_service.dart';
+import '../Service/user_service.dart';
 
 class ReviewsScreen extends StatefulWidget {
   const ReviewsScreen({super.key});
@@ -13,9 +15,10 @@ class ReviewsScreen extends StatefulWidget {
 class _ReviewsScreenState extends State<ReviewsScreen> {
   bool _isLoading = true;
   String? _errorMessage;
-  List<ReviewData> _reviews = [];
+  List<UserReviewItem> _reviews = [];
   double _averageRating = 0.0;
   int _totalReviews = 0;
+  int? _currentUserId;
   
   int _currentPage = 1;
   int _lastPage = 1;
@@ -24,10 +27,41 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadReviews();
+    _loadCurrentUserAndReviews();
+  }
+  
+  Future<void> _loadCurrentUserAndReviews() async {
+    // Get current user ID from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final userJson = prefs.getString('user_data');
+    
+    if (userJson != null) {
+      try {
+        final userData = jsonDecode(userJson);
+        _currentUserId = userData['id'];
+      } catch (e) {
+        setState(() {
+          _errorMessage = 'Failed to load user data. Please login again.';
+          _isLoading = false;
+        });
+        return;
+      }
+    }
+    
+    if (_currentUserId == null) {
+      setState(() {
+        _errorMessage = 'User not found. Please login again.';
+        _isLoading = false;
+      });
+      return;
+    }
+    
+    await _loadReviews();
   }
   
   Future<void> _loadReviews({bool loadMore = false}) async {
+    if (_currentUserId == null) return;
+    
     if (loadMore) {
       if (_currentPage >= _lastPage || _isLoadingMore) return;
       setState(() => _isLoadingMore = true);
@@ -40,25 +74,30 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     
     try {
       final page = loadMore ? _currentPage + 1 : 1;
-      final response = await ReviewService.getReceivedReviews(page: page);
+      // FIX: Using UserService.getUserReviews() instead of removed ReviewService.getReceivedReviews()
+      // API endpoint: GET /users/{id}/reviews (Section 5.4)
+      final response = await UserService.getUserReviews(
+        userId: _currentUserId!,
+        page: page,
+      );
       
-      if (response.success) {
+      if (response != null && response.success) {
         setState(() {
           if (loadMore) {
-            _reviews.addAll(response.data);
+            _reviews.addAll(response.reviews);
           } else {
-            _reviews = response.data;
+            _reviews = response.reviews;
           }
-          _averageRating = response.averageRating ?? 0.0;
-          _totalReviews = response.totalReviews ?? response.data.length;
-          _currentPage = response.pagination?.currentPage ?? page;
-          _lastPage = response.pagination?.lastPage ?? 1;
+          _averageRating = response.averageRating;
+          _totalReviews = response.totalReviews;
+          _currentPage = response.pagination.currentPage;
+          _lastPage = response.pagination.lastPage;
           _isLoading = false;
           _isLoadingMore = false;
         });
       } else {
         setState(() {
-          _errorMessage = response.message;
+          _errorMessage = 'Failed to load reviews';
           _isLoading = false;
           _isLoadingMore = false;
         });
@@ -377,7 +416,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
 
   Widget _buildReviewItem({
-    required ReviewData review,
+    required UserReviewItem review,
     required AppColorSet colors,
     required Color primaryColor,
     required double cardRadius,
@@ -394,11 +433,12 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     required double ratingBadgeRadius,
     required double itemSpacing,
   }) {
+    // FIX: Updated to use UserReviewItem model from UserService.getUserReviews()
     final reviewerName = review.reviewer?.name ?? 'Anonymous';
-    final reviewerPhoto = review.reviewer?.profilePhoto;
-    final rating = review.rating.toDouble();
+    final reviewerPhoto = review.reviewer?.profilePicture;
+    final rating = review.rating;
     final comment = review.review ?? '';
-    final date = _formatDate(review.createdAt);
+    final date = _formatDateFromDateTime(review.createdAt);
     
     return Container(
       padding: EdgeInsets.all(cardPadding),
@@ -541,15 +581,10 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     );
   }
   
-  String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '';
-    try {
-      final date = DateTime.parse(dateStr);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${date.day} ${months[date.month - 1]} ${date.year}';
-    } catch (e) {
-      return dateStr;
-    }
+  // FIX: Updated to handle DateTime directly from UserReviewItem
+  String _formatDateFromDateTime(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }

@@ -38,6 +38,23 @@ class AppColors {
   
   
   static const DarkColors dark = DarkColors();
+  
+  static LightColors get lightColors => light;
+}
+
+// Helper methods - separate class or extension
+// Utility class for color methods
+class AppColorUtils {
+  static AppColorSet getColorSet(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return brightness == Brightness.dark 
+        ? AppColorSet.dark() 
+        : AppColorSet.light();
+  }
+  
+  static Color getPrimaryColor(BuildContext context) {
+    return AppColors.primary;
+  }
 }
 
 class LightColors {
@@ -143,6 +160,8 @@ class AppColorSet {
   final Color inputFocusBorder;
   final Color overlay;
   final Color scrim;
+  final Color cardBackground;
+  final Color cardBorder;
 
   const AppColorSet({
     required this.background,
@@ -168,6 +187,8 @@ class AppColorSet {
     required this.inputFocusBorder,
     required this.overlay,
     required this.scrim,
+    required this.cardBackground,
+    required this.cardBorder,
   });
 
   factory AppColorSet.light() {
@@ -196,6 +217,8 @@ class AppColorSet {
       inputFocusBorder: colors.inputFocusBorder,
       overlay: colors.overlay,
       scrim: colors.scrim,
+      cardBackground: colors.card,
+      cardBorder: colors.border,
     );
   }
 
@@ -225,6 +248,8 @@ class AppColorSet {
       inputFocusBorder: colors.inputFocusBorder,
       overlay: colors.overlay,
       scrim: colors.scrim,
+      cardBackground: colors.card,
+      cardBorder: colors.border,
     );
   }
 }

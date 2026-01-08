@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:settingwala/utils/api_constants.dart';
+import 'package:intl/intl.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
 import '../Service/profile_service.dart';
+import '../Service/user_service.dart';
+import '../Service/booking_service.dart';
 import '../model/getprofilemodel.dart';
+import '../model/postbookingsmodel.dart';
 import '../routes/app_routes.dart';
 
 class PersonProfileScreen extends StatefulWidget {
@@ -21,12 +26,17 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
   GetProfileModel? _userProfile;
   bool _isLoading = true;
   String? _errorMessage;
+  
+  // Past bookings state
+  List<BookingData> _pastBookings = [];
+  bool _isLoadingPastBookings = false;
 
   @override
   void initState() {
     super.initState();
     _fetchUserProfile();
     _checkCurrentUserSubscription();
+    _loadPastBookings(); // Load past bookings with this person
   }
 
   Future<void> _fetchUserProfile() async {
@@ -58,6 +68,54 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
     }
   }
 
+  // Load past bookings with this person - calls GET /bookings API
+  Future<void> _loadPastBookings() async {
+    final personId = widget.person['id'];
+    if (personId == null) return;
+
+    setState(() {
+      _isLoadingPastBookings = true;
+    });
+
+    try {
+      final response = await BookingService.getBookings();
+      if (response != null && response.success == true && response.bookings.isNotEmpty) {
+        // Filter bookings with this specific person
+        final bookingsWithPerson = response.bookings.where((booking) {
+          // Check if other_user matches the person we're viewing
+          final otherUserId = booking.otherUser?.id;
+          return otherUserId == personId;
+        }).toList();
+
+        // Filter for completed/confirmed bookings (past bookings)
+        final pastBookings = bookingsWithPerson.where((booking) {
+          final status = booking.status.toLowerCase();
+          return status == 'completed' || status == 'confirmed';
+        }).toList();
+
+        // Sort by date (newest first)
+        pastBookings.sort((a, b) {
+          final dateA = DateTime.tryParse(a.bookingDate ?? '') ?? DateTime(1900);
+          final dateB = DateTime.tryParse(b.bookingDate ?? '') ?? DateTime(1900);
+          return dateB.compareTo(dateA);
+        });
+
+        setState(() {
+          _pastBookings = pastBookings.take(5).toList(); // Show last 5 bookings
+          _isLoadingPastBookings = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingPastBookings = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingPastBookings = false;
+      });
+    }
+  }
+
   Future<void> _checkCurrentUserSubscription() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -82,6 +140,49 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
 
   void _onBookTimeTap(Map<String, dynamic> person) async {
     AppRoutes.toBookMeeting(context, person);
+  }
+
+  // Navigate to reviews screen - calls GET /users/{id}/reviews API
+  void _onViewReviewsTap(Map<String, dynamic> person) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.personReviews,
+      arguments: person,
+    );
+  }
+
+  // Navigate to bookings screen - calls GET /bookings API and filters by person
+  void _onViewBookingsTap(Map<String, dynamic> person) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.personBookings,
+      arguments: person,
+    );
+  }
+
+  // Format date of birth based on privacy settings
+  String _formatDateOfBirth(dynamic dateOfBirth, bool hideDobYear) {
+    if (dateOfBirth == null) return '';
+    
+    try {
+      DateTime dob;
+      if (dateOfBirth is DateTime) {
+        dob = dateOfBirth;
+      } else if (dateOfBirth is String && dateOfBirth.isNotEmpty) {
+        dob = DateTime.parse(dateOfBirth);
+      } else {
+        return '';
+      }
+      
+      // If user wants to hide year, show only month and day
+      if (hideDobYear) {
+        return DateFormat('MMMM d').format(dob); // e.g., "January 5"
+      } else {
+        return DateFormat('MMMM d, yyyy').format(dob); // e.g., "January 5, 1990"
+      }
+    } catch (e) {
+      return '';
+    }
   }
 
   Widget _buildProfileAvatar(Map<String, dynamic> person, double avatarRadius, double avatarIconSize) {
@@ -117,27 +218,18 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
         color: AppColors.white,
       ),
       child: ClipOval(
-        child: Image.network(
-          imageUrl,
+        child: CachedImage(
+          imageUrl: imageUrl,
           width: avatarRadius * 2,
           height: avatarRadius * 2,
           fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-                color: isFemale ? Colors.pink.shade400 : Colors.blue.shade400,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            
-            return Center(child: defaultIcon);
-          },
+          placeholder: Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: isFemale ? Colors.pink.shade400 : Colors.blue.shade400,
+            ),
+          ),
+          errorWidget: Center(child: defaultIcon),
         ),
       ),
     );
@@ -317,52 +409,76 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
                 ),
                 SizedBox(height: isTablet ? 12 : 8),
 
-                Row(
-                  children: [
-                    Icon(Icons.location_on, size: iconSize, color: colors.textTertiary),
-                    SizedBox(width: isTablet ? 6 : 4),
-                    Expanded(
-                      child: Text(
-                        person['location'],
+                // Only show location row if location is not empty
+                if (person['location'] != null && person['location'].toString().isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, size: iconSize, color: colors.textTertiary),
+                      SizedBox(width: isTablet ? 6 : 4),
+                      Expanded(
+                        child: Text(
+                          person['location'],
+                          style: TextStyle(fontSize: infoFontSize, color: colors.textTertiary),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: isTablet ? 12 : 8),
+                ],
+
+                // Show date of birth if user allows it
+                if (person['showDateOfBirth'] == true && person['dateOfBirth'] != null) ...[
+                  Row(
+                    children: [
+                      Icon(Icons.cake_outlined, size: iconSize, color: colors.textTertiary),
+                      SizedBox(width: isTablet ? 6 : 4),
+                      Text(
+                        _formatDateOfBirth(person['dateOfBirth'], person['hideDobYear'] ?? false),
                         style: TextStyle(fontSize: infoFontSize, color: colors.textTertiary),
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: isTablet ? 12 : 8),
+                    ],
+                  ),
+                  SizedBox(height: isTablet ? 12 : 8),
+                ],
 
                 Row(
                   children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isTablet ? 12 : 8,
-                        vertical: isTablet ? 6 : 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.star, size: isTablet ? 18 : 14, color: Colors.amber),
-                          SizedBox(width: isTablet ? 6 : 4),
-                          Text(
-                            '${person['rating']}',
-                            style: TextStyle(
-                              fontSize: isDesktop ? 14.0 : isTablet ? 13.0 : 12.0,
-                              fontWeight: FontWeight.bold,
-                              color: colors.textPrimary,
+                    // Tappable rating section - navigates to reviews screen
+                    GestureDetector(
+                      onTap: () => _onViewReviewsTap(person),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 12 : 8,
+                          vertical: isTablet ? 6 : 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.star, size: isTablet ? 18 : 14, color: Colors.amber),
+                            SizedBox(width: isTablet ? 6 : 4),
+                            Text(
+                              '${person['rating']}',
+                              style: TextStyle(
+                                fontSize: isDesktop ? 14.0 : isTablet ? 13.0 : 12.0,
+                                fontWeight: FontWeight.bold,
+                                color: colors.textPrimary,
+                              ),
                             ),
-                          ),
-                          SizedBox(width: isTablet ? 6 : 4),
-                          Text(
-                            '(${person['reviews']})',
-                            style: TextStyle(
-                              fontSize: isDesktop ? 14.0 : isTablet ? 13.0 : 12.0,
-                              color: colors.textSecondary,
+                            SizedBox(width: isTablet ? 6 : 4),
+                            Text(
+                              '(${person['reviews']})',
+                              style: TextStyle(
+                                fontSize: isDesktop ? 14.0 : isTablet ? 13.0 : 12.0,
+                                color: colors.textSecondary,
+                              ),
                             ),
-                          ),
-                        ],
+                            SizedBox(width: isTablet ? 4 : 2),
+                            Icon(Icons.chevron_right, size: isTablet ? 16 : 12, color: colors.textTertiary),
+                          ],
+                        ),
                       ),
                     ),
                     SizedBox(width: isTablet ? 12 : 8),
@@ -475,21 +591,46 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
           SizedBox(height: buttonSpacing),
         ],
 
+        // View Reviews Button - calls GET /users/{id}/reviews API
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              AppRoutes.navigateTo(context, AppRoutes.myBookings);
-            },
-            icon: Icon(Icons.calendar_month, size: buttonIconSize),
+          child: OutlinedButton.icon(
+            onPressed: () => _onViewReviewsTap(person),
+            icon: Icon(Icons.star_rate, size: buttonIconSize, color: Colors.amber),
             label: Text(
-              'My Bookings',
-              style: TextStyle(fontSize: buttonFontSize, fontWeight: FontWeight.bold),
+              'View Reviews (${person['reviews'] ?? 0})',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: buttonFontSize,
+              ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              foregroundColor: AppColors.white,
+            style: OutlinedButton.styleFrom(
               padding: EdgeInsets.symmetric(vertical: buttonPadding),
+              side: BorderSide(color: Colors.amber.withOpacity(0.5)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(buttonBorderRadius),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: buttonSpacing),
+
+        // View Bookings Button - calls GET /bookings API filtered by person
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _onViewBookingsTap(person),
+            icon: Icon(Icons.calendar_month, size: buttonIconSize, color: Colors.blue),
+            label: Text(
+              'View Bookings',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: buttonFontSize,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: buttonPadding),
+              side: BorderSide(color: Colors.blue.withOpacity(0.5)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(buttonBorderRadius),
               ),
@@ -519,7 +660,458 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
             ),
           ),
         ),
+        
+        // Past Bookings Section - shows completed/confirmed bookings with this person
+        SizedBox(height: buttonSpacing * 2),
+        _buildPastBookingsSection(person, colors, buttonFontSize, buttonIconSize),
       ],
+    );
+  }
+
+  // Build Past Bookings section showing recent bookings with this person
+  Widget _buildPastBookingsSection(Map<String, dynamic> person, AppColorSet colors, double fontSize, double iconSize) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
+
+    final titleFontSize = isDesktop ? 18.0 : isTablet ? 16.0 : isSmallScreen ? 12.0 : 14.0;
+    final cardPadding = isDesktop ? 16.0 : isTablet ? 14.0 : 12.0;
+    final spacing = isDesktop ? 12.0 : isTablet ? 10.0 : 8.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Title
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.history, size: iconSize, color: Colors.teal),
+                SizedBox(width: spacing),
+                Text(
+                  'Past Bookings',
+                  style: TextStyle(
+                    fontSize: titleFontSize,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            if (_pastBookings.isNotEmpty)
+              TextButton(
+                onPressed: () => _onViewBookingsTap(person),
+                child: Text(
+                  'View All',
+                  style: TextStyle(
+                    fontSize: fontSize * 0.9,
+                    color: Colors.teal,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        SizedBox(height: spacing),
+
+        // Loading state
+        if (_isLoadingPastBookings)
+          Center(
+            child: Padding(
+              padding: EdgeInsets.all(cardPadding),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.teal,
+              ),
+            ),
+          )
+        // Empty state
+        else if (_pastBookings.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(cardPadding),
+            decoration: BoxDecoration(
+              color: colors.cardBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.cardBorder.withOpacity(0.5)),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.event_busy,
+                  size: iconSize * 2,
+                  color: colors.textTertiary,
+                ),
+                SizedBox(height: spacing),
+                Text(
+                  'No past bookings with this person',
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    color: colors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
+        // Bookings list
+        else
+          Column(
+            children: _pastBookings.map((booking) {
+              return _buildPastBookingCard(booking, colors, fontSize, cardPadding, spacing);
+            }).toList(),
+          ),
+      ],
+    );
+  }
+
+  // Build individual past booking card
+  Widget _buildPastBookingCard(BookingData booking, AppColorSet colors, double fontSize, double padding, double spacing) {
+    final bookingDate = booking.bookingDate ?? '';
+    final status = booking.status;
+    final duration = booking.durationHours ?? '0';
+    final location = booking.meetingLocation ?? 'Not specified';
+    final totalAmount = booking.totalAmount ?? '0';
+    final paymentStatus = booking.paymentStatus ?? 'unknown';
+
+    // Format date
+    String formattedDate = bookingDate;
+    try {
+      final date = DateTime.parse(bookingDate);
+      formattedDate = '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      // Keep original format if parsing fails
+    }
+
+    // Status color
+    Color statusColor;
+    switch (status.toLowerCase()) {
+      case 'completed':
+        statusColor = Colors.green;
+        break;
+      case 'confirmed':
+        statusColor = Colors.blue;
+        break;
+      case 'cancelled':
+        statusColor = Colors.red;
+        break;
+      default:
+        statusColor = Colors.grey;
+    }
+
+    return GestureDetector(
+      onTap: () => _showBookingDetails(booking),
+      child: Container(
+        width: double.infinity,
+        margin: EdgeInsets.only(bottom: spacing),
+        padding: EdgeInsets.all(padding),
+        decoration: BoxDecoration(
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.cardBorder.withOpacity(0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Date and Status row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today, size: fontSize, color: colors.textTertiary),
+                    SizedBox(width: spacing / 2),
+                    Text(
+                      formattedDate,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: fontSize * 0.8,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: spacing),
+
+            // Duration and Location
+            Row(
+              children: [
+                Icon(Icons.access_time, size: fontSize * 0.9, color: colors.textTertiary),
+                SizedBox(width: spacing / 2),
+                Text(
+                  '$duration hour(s)',
+                  style: TextStyle(
+                    fontSize: fontSize * 0.9,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                SizedBox(width: spacing * 2),
+                Icon(Icons.location_on, size: fontSize * 0.9, color: colors.textTertiary),
+                SizedBox(width: spacing / 2),
+                Expanded(
+                  child: Text(
+                    location,
+                    style: TextStyle(
+                      fontSize: fontSize * 0.9,
+                      color: colors.textSecondary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: spacing),
+
+            // Amount and Payment Status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '₹ $totalAmount',
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal,
+                  ),
+                ),
+                Text(
+                  paymentStatus.replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: fontSize * 0.8,
+                    color: paymentStatus.toLowerCase() == 'paid' ? Colors.green : Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+
+            // Tap hint
+            SizedBox(height: spacing / 2),
+            Center(
+              child: Text(
+                'Tap for details',
+                style: TextStyle(
+                  fontSize: fontSize * 0.75,
+                  color: colors.textTertiary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Show booking details in a bottom sheet
+  void _showBookingDetails(BookingData booking) async {
+    final colors = AppColorUtils.getColorSet(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
+
+    final titleFontSize = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
+    final fontSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;
+    final padding = isDesktop ? 24.0 : isTablet ? 20.0 : 16.0;
+    final spacing = isDesktop ? 16.0 : isTablet ? 14.0 : 12.0;
+
+    // Format booking details
+    final bookingDate = booking.bookingDate ?? '';
+    String formattedDate = bookingDate;
+    try {
+      final date = DateTime.parse(bookingDate);
+      formattedDate = '${date.day}/${date.month}/${date.year}';
+    } catch (e) {}
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: colors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: EdgeInsets.all(padding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.textTertiary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: spacing),
+
+                  // Title
+                  Text(
+                    'Booking Details',
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: spacing * 1.5),
+
+                  // Booking ID
+                  _buildDetailItem('Booking ID', '#${booking.id}', Icons.tag, colors, fontSize, spacing),
+                  
+                  // Date
+                  _buildDetailItem('Date', formattedDate, Icons.calendar_today, colors, fontSize, spacing),
+                  
+                  // Duration
+                  _buildDetailItem('Duration', '${booking.durationHours ?? '0'} hour(s)', Icons.access_time, colors, fontSize, spacing),
+                  
+                  // Location
+                  _buildDetailItem('Location', booking.meetingLocation ?? 'Not specified', Icons.location_on, colors, fontSize, spacing),
+                  
+                  // Status
+                  _buildDetailItem('Status', booking.status.toUpperCase(), Icons.info_outline, colors, fontSize, spacing),
+                  
+                  // Hourly Rate
+                  _buildDetailItem('Hourly Rate', '₹ ${booking.hourlyRate ?? '0'}', Icons.monetization_on, colors, fontSize, spacing),
+                  
+                  // Total Amount
+                  _buildDetailItem('Total Amount', '₹ ${booking.totalAmount ?? '0'}', Icons.account_balance_wallet, colors, fontSize, spacing),
+                  
+                  // Payment Status
+                  _buildDetailItem('Payment Status', (booking.paymentStatus ?? 'Unknown').replaceAll('_', ' ').toUpperCase(), Icons.payment, colors, fontSize, spacing),
+                  
+                  // Notes (if any)
+                  if (booking.notes != null && booking.notes!.isNotEmpty) ...[
+                    SizedBox(height: spacing),
+                    Text(
+                      'Notes',
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: spacing / 2),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(padding * 0.75),
+                      decoration: BoxDecoration(
+                        color: colors.cardBorder.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        booking.notes!,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  SizedBox(height: spacing * 2),
+
+                  // Close button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        padding: EdgeInsets.symmetric(vertical: padding * 0.75),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Close',
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: spacing),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Helper widget for detail items in bottom sheet
+  Widget _buildDetailItem(String label, String value, IconData icon, AppColorSet colors, double fontSize, double spacing) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: spacing),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: fontSize * 1.2, color: colors.textTertiary),
+          SizedBox(width: spacing),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: fontSize * 0.85,
+                    color: colors.textTertiary,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -671,32 +1263,22 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(borderRadius),
                     child: imageUrl.isNotEmpty
-                        ? Image.network(
-                            imageUrl,
+                        ? CachedImage(
+                            imageUrl: imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              
-                              return Center(
-                                child: Icon(
-                                  Icons.broken_image,
-                                  size: iconSize,
-                                  color: primaryColor.withOpacity(0.5),
-                                ),
-                              );
-                            },
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded / 
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  strokeWidth: 2,
-                                  color: primaryColor,
-                                ),
-                              );
-                            },
+                            placeholder: Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: primaryColor,
+                              ),
+                            ),
+                            errorWidget: Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: iconSize,
+                                color: primaryColor.withOpacity(0.5),
+                              ),
+                            ),
                           )
                         : Center(
                             child: Icon(
@@ -762,7 +1344,8 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
         locationParts.add(user.country.toString());
       }
       
-      return locationParts.isEmpty ? 'Location not specified' : locationParts.join(', ');
+      // Return empty string if no location parts - UI will hide the row
+      return locationParts.join(', ');
     }
     
     List<String> processExpectations() {
@@ -783,6 +1366,45 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
       return expectations;
     }
     
+    // Helper function to clean individual interest item
+    String cleanInterestItem(String item) {
+      String cleaned = item.trim();
+      // Remove surrounding brackets and quotes
+      cleaned = cleaned.replaceAll(RegExp(r'^\[|\]$'), '');
+      cleaned = cleaned.replaceAll(RegExp(r'^"|"$'), '');
+      cleaned = cleaned.replaceAll(RegExp(r"^'|'$"), '');
+      return cleaned.trim();
+    }
+    
+    // Helper function to parse interests string (JSON array format)
+    List<String> parseInterestsString(String str) {
+      List<String> result = [];
+      str = str.trim();
+      
+      // Check if it's a JSON array format like ["developer"] or ["item1", "item2"]
+      if (str.startsWith('[') && str.endsWith(']')) {
+        // Remove outer brackets
+        str = str.substring(1, str.length - 1).trim();
+        
+        // Split by comma and clean each item
+        List<String> parts = str.split(',');
+        for (var part in parts) {
+          String cleaned = part.trim();
+          // Remove quotes
+          cleaned = cleaned.replaceAll(RegExp(r'^"|"$'), '');
+          cleaned = cleaned.replaceAll(RegExp(r"^'|'$"), '');
+          if (cleaned.isNotEmpty) {
+            result.add(cleaned);
+          }
+        }
+      } else if (str.isNotEmpty) {
+        // Not a JSON array, just add as single item
+        result.add(str);
+      }
+      
+      return result;
+    }
+    
     List<String> processInterests() {
       List<String> interests = [];
       
@@ -790,11 +1412,17 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
         if (user.interests is List) {
           for (var item in user.interests) {
             if (item != null && item.toString().isNotEmpty) {
-              interests.add(item.toString());
+              // Clean up the item - remove brackets, quotes
+              String cleaned = cleanInterestItem(item.toString());
+              if (cleaned.isNotEmpty) {
+                interests.add(cleaned);
+              }
             }
           }
         } else if (user.interests.toString().isNotEmpty) {
-          interests.add(user.interests.toString());
+          // Try to parse as JSON string array first
+          String interestStr = user.interests.toString();
+          interests = parseInterestsString(interestStr);
         }
       }
       
@@ -837,6 +1465,9 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
       'galleryCount': _userProfile?.data?.gallery?.length ?? 0,
       'timeSpendingServices': [],
       'timeSpendingDescription': '',
+      'dateOfBirth': user.dateOfBirth,
+      'showDateOfBirth': user.showDateOfBirth ?? true,
+      'hideDobYear': user.hideDobYear ?? false,
     };
   }
 
@@ -851,61 +1482,191 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
     final contentFontSize = isDesktop ? 16.0 : isTablet ? 15.0 : 14.0;
     final buttonFontSize = isDesktop ? 16.0 : isTablet ? 15.0 : 14.0;
 
+    String? selectedReason;
+    final descriptionController = TextEditingController();
+    bool isSubmitting = false;
+
+    // Map display reasons to API reason values (snake_case as per API docs)
+    final reportReasons = {
+      'Inappropriate Behavior': 'inappropriate_behavior',
+      'Spam or Scam': 'spam_or_scam',
+      'Fake Profile': 'fake_profile',
+      'Harassment or Bullying': 'harassment',
+      'Other': 'other',
+    };
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(isTablet ? 20 : 16),
-        ),
-        title: Text(
-          'Report ${person['name']}',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: titleFontSize,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: colors.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(isTablet ? 20 : 16),
           ),
-        ),
-        content: Text(
-          'Are you sure you want to report this user? This action will be reviewed by our team.',
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: contentFontSize,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                color: colors.textTertiary,
-                fontSize: buttonFontSize,
-              ),
+          title: Text(
+            'Report ${person['name']}',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: titleFontSize,
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Report submitted for ${person['name']}'),
-                  backgroundColor: AppColors.error,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Please select a reason for reporting:',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: contentFontSize,
+                  ),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
-              ),
-            ),
-            child: Text(
-              'Report',
-              style: TextStyle(fontSize: buttonFontSize),
+                const SizedBox(height: 16),
+                ...reportReasons.keys.map((reason) => RadioListTile<String>(
+                  title: Text(
+                    reason,
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: contentFontSize,
+                    ),
+                  ),
+                  value: reason,
+                  groupValue: selectedReason,
+                  onChanged: isSubmitting ? null : (value) {
+                    setDialogState(() {
+                      selectedReason = value;
+                    });
+                  },
+                  activeColor: AppColors.error,
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                )),
+                const SizedBox(height: 16),
+                Text(
+                  'Description (optional):',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: contentFontSize,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  enabled: !isSubmitting,
+                  maxLines: 3,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: contentFontSize,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Provide more details about the issue...',
+                    hintStyle: TextStyle(
+                      color: colors.textTertiary,
+                      fontSize: contentFontSize,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.error),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: colors.textTertiary,
+                  fontSize: buttonFontSize,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: (selectedReason == null || isSubmitting)
+                  ? null
+                  : () async {
+                      setDialogState(() {
+                        isSubmitting = true;
+                      });
+
+                      final userId = person['id'];
+                      if (userId == null) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Error: User ID not found'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        return;
+                      }
+
+                      // Call POST /users/{id}/report API
+                      final response = await UserService.reportUser(
+                        userId: userId is int ? userId : int.parse(userId.toString()),
+                        reason: reportReasons[selectedReason]!,
+                        description: descriptionController.text.trim().isEmpty 
+                            ? 'No additional details provided.'
+                            : descriptionController.text.trim(),
+                      );
+
+                      if (!context.mounted) return;
+                      Navigator.pop(context);
+
+                      if (response != null && response.success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(response.message ?? 'Report submitted successfully'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(response?.message ?? 'Failed to submit report. Please try again.'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
+                disabledBackgroundColor: AppColors.gray400,
+                disabledForegroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
+                ),
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                      ),
+                    )
+                  : Text(
+                      'Report',
+                      style: TextStyle(fontSize: buttonFontSize),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

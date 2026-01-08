@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../widgets/theme_toggle.dart';
 import '../Service/profile_service.dart';
 import '../routes/app_routes.dart';
+import '../utils/auth_helper.dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -26,11 +27,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
   String _userEmail = 'user@example.com';
   String? _userPhotoUrl;
   bool _isLoading = true;
+  bool _isValidating = true;
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _validateAndLoadProfile();
+  }
+
+  // Validate user first, then load profile if valid
+  Future<void> _validateAndLoadProfile() async {
+    final isValid = await AuthHelper.validateUserOrRedirect(context);
+    
+    if (!mounted) return;
+    
+    if (isValid) {
+      setState(() {
+        _isValidating = false;
+      });
+      _loadProfile();
+    }
+    // If not valid, AuthHelper already redirected to login
   }
 
   Future<void> _loadProfile() async {
@@ -43,31 +60,27 @@ class _CustomDrawerState extends State<CustomDrawer> {
         final user = profileData.data!.user!;
         String? avatarUrl = user.profilePictureUrl?.toString() ?? user.profilePicture?.toString();
         
+        // Check for invalid/placeholder email and redirect to login
+        final email = user.email;
+        if (email == null || email.isEmpty || email == 'user@example.com') {
+          await AuthHelper.forceLogout(context);
+          return;
+        }
+        
         setState(() {
           _userName = user.name ?? 'User';
-          _userEmail = user.email ?? 'user@example.com';
+          _userEmail = email;
           _userPhotoUrl = _cleanImageUrl(avatarUrl);
           _isLoading = false;
         });
       } else {
-        final user = FirebaseAuth.instance.currentUser;
-        setState(() {
-          _userName = user?.displayName ?? 'User';
-          _userEmail = user?.email ?? 'user@example.com';
-          _userPhotoUrl = user?.photoURL;
-          _isLoading = false;
-        });
+        // No valid profile data - redirect to login
+        await AuthHelper.forceLogout(context);
       }
     } catch (e) {
-      
       if (!mounted) return;
-      final user = FirebaseAuth.instance.currentUser;
-      setState(() {
-        _userName = user?.displayName ?? 'User';
-        _userEmail = user?.email ?? 'user@example.com';
-        _userPhotoUrl = user?.photoURL;
-        _isLoading = false;
-      });
+      // On error, redirect to login
+      await AuthHelper.forceLogout(context);
     }
   }
 
@@ -89,6 +102,21 @@ class _CustomDrawerState extends State<CustomDrawer> {
             : isSmallScreen 
                 ? screenWidth * 0.85 
                 : 304.0;
+    
+    // Show loading while validating user
+    if (_isValidating) {
+      return SizedBox(
+        width: drawerWidth,
+        child: Drawer(
+          backgroundColor: colors.background,
+          child: Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            ),
+          ),
+        ),
+      );
+    }
     
     final nameFontSize = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
     final emailFontSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;

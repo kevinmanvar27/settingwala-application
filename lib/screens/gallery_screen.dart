@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
 import '../Service/gallery_service.dart';
@@ -651,32 +652,23 @@ class _GalleryScreenState extends State<GalleryScreen> {
             fit: StackFit.expand,
             children: [
               imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
+                  ? CachedImage(
+                      imageUrl: imageUrl,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
-                            color: primaryColor,
-                            strokeWidth: 2,
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: colors.card,
-                          child: Icon(
-                            Icons.broken_image,
-                            color: colors.textSecondary,
-                            size: isSmallScreen ? 24 : 32,
-                          ),
-                        );
-                      },
+                      placeholder: Center(
+                        child: CircularProgressIndicator(
+                          color: primaryColor,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      errorWidget: Container(
+                        color: colors.card,
+                        child: Icon(
+                          Icons.broken_image,
+                          color: colors.textSecondary,
+                          size: isSmallScreen ? 24 : 32,
+                        ),
+                      ),
                     )
                   : Container(
                       color: colors.card,
@@ -741,30 +733,21 @@ class _GalleryScreenState extends State<GalleryScreen> {
               boundaryMargin: const EdgeInsets.all(20),
               minScale: 0.5,
               maxScale: 4,
-              child: Image.network(
-                imageUrl,
+              child: CachedImage(
+                imageUrl: imageUrl,
                 fit: BoxFit.contain,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      color: AppColors.white,
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(
-                    child: Icon(
-                      Icons.broken_image,
-                      color: AppColors.white,
-                      size: 64,
-                    ),
-                  );
-                },
+                placeholder: const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.white,
+                  ),
+                ),
+                errorWidget: const Center(
+                  child: Icon(
+                    Icons.broken_image,
+                    color: AppColors.white,
+                    size: 64,
+                  ),
+                ),
               ),
             ),
           ),

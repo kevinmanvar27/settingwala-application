@@ -21,7 +21,7 @@ void main() async {
 
   await PermissionHelper.requestAllAppPermissions();
 
-  // DevicePreview થી wrap કરો
+  // Wrap with DevicePreview if needed
   runApp(const MyApp());
 }
 
@@ -76,8 +76,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-// AuthWrapper અને બાકીનો કોડ અહીં નીચે રહેશે...
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});

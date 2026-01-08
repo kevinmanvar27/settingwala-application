@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../model/getusersmodel.dart';
 import '../model/getuseravailabilitymodel.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
+import 'cache_service.dart';
 
 
 class ReviewerInfo {
@@ -139,117 +141,31 @@ class UserService {
     return prefs.getString('auth_token');
   }
 
-  static Future<Getusersmodel?> getUsers({int page = 1}) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        
-        return null;
+  static Future<Getusersmodel?> getUsers({int page = 1, bool forceRefresh = false}) async {
+    final cacheKey = '${CacheService.usersListKey}_$page';
+    
+    // Check cache first (only for page 1 and if not forcing refresh)
+    if (!forceRefresh && page == 1) {
+      final cachedData = await CacheService.getFromCache(cacheKey);
+      if (cachedData != null) {
+        try {
+          return Getusersmodel.fromJson(cachedData);
+        } catch (e) {
+          // Cache data corrupted, continue to fetch from API
+        }
       }
-
-      final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/users?page=$page'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      
-      
-      
-      
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return Getusersmodel.fromJson(data);
-      } else {
-        
-        return null;
-      }
-    } catch (e) {
-      
-      return null;
     }
-  }
-
-  static Future<Getuseravailabilitymodel?> getUserAvailability({
-    required int userId,
-    required DateTime date,
-  }) async {
+    
+    final url = '${ApiConstants.baseUrl}/users?page=$page';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final formattedDate = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-      
-      
-      
-      
-
-      final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/users/$userId/availability?date=$formattedDate'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      
-      
-      
-      
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        return Getuseravailabilitymodel.fromJson(json);
-      } else if (response.statusCode == 401) {
-        
-        return null;
-      } else if (response.statusCode == 404) {
-        
-        return null;
-      } else {
-        
-        return null;
-      }
-    } catch (e) {
-      
-      return null;
-    }
-  }
-
-
-  static Future<UserReviewsResponse?> getUserReviews({
-    required int userId,
-    int page = 1,
-    int perPage = 10,
-  }) async {
-    try {
-      final token = await _getToken();
-
-      if (token == null) {
-        
-        return null;
-      }
-
-      final url = '${ApiConstants.baseUrl}/users/$userId/reviews?page=$page&per_page=$perPage';
-      
-      
-      
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -260,65 +176,150 @@ class UserService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        final result = UserReviewsResponse.fromJson(json);
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final data = jsonDecode(response.body);
         
+        // Cache the response (only for page 1)
+        if (page == 1) {
+          await CacheService.saveToCache(
+            key: cacheKey,
+            data: data,
+            durationMinutes: CacheService.usersCacheDuration,
+          );
+        }
         
-        
-        
-        
-        return result;
-      } else if (response.statusCode == 404) {
-        
-        return null;
+        return Getusersmodel.fromJson(data);
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
-  static Future<ReportUserResponse?> reportUser({
+  static Future<Getuseravailabilitymodel?> getUserAvailability({
     required int userId,
-    required String category,
-    required String description,
-    List<String>? evidencePaths,
+    required DateTime date,
   }) async {
+    final formattedDate = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final url = '${ApiConstants.baseUrl}/users/$userId/availability?date=$formattedDate';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/users/$userId/report';
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final json = jsonDecode(response.body);
+        return Getuseravailabilitymodel.fromJson(json);
+      } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
+        return null;
+      } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
+        return null;
+      } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get user availability');
+        return null;
+      }
+    } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return null;
+    }
+  }
+
+
+  static Future<UserReviewsResponse?> getUserReviews({
+    required int userId,
+    int page = 1,
+    int perPage = 10,
+  }) async {
+    final url = '${ApiConstants.baseUrl}/users/$userId/reviews?page=$page&per_page=$perPage';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return null;
+      }
+
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        final json = jsonDecode(response.body);
+        final result = UserReviewsResponse.fromJson(json);
+        return result;
+      } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
+        return null;
+      } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get user reviews');
+        return null;
+      }
+    } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return null;
+    }
+  }
+
+  /// FIX: API Section 5.5 uses 'reason' not 'category'
+  static Future<ReportUserResponse?> reportUser({
+    required int userId,
+    required String reason,  // FIX: renamed from category to reason
+    required String description,
+    List<String>? evidencePaths,
+  }) async {
+    final url = '${ApiConstants.baseUrl}/users/$userId/report';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return null;
+      }
 
       if (evidencePaths != null && evidencePaths.isNotEmpty) {
+        // Multipart request with evidence files
+        ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {
+          'reason': reason,  // FIX: API expects 'reason' not 'category'
+          'description': description,
+          'evidence_count': evidencePaths.length,
+        });
+
         var request = http.MultipartRequest('POST', Uri.parse(url));
         request.headers.addAll({
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         });
         
-        request.fields['category'] = category;
+        request.fields['reason'] = reason;  // FIX: API expects 'reason'
         request.fields['description'] = description;
         
         for (var path in evidencePaths) {
@@ -328,30 +329,35 @@ class UserService {
         final streamedResponse = await request.send();
         final response = await http.Response.fromStream(streamedResponse);
 
-        
-        
-
         if (response.statusCode == 200 || response.statusCode == 201) {
+          ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
           final json = jsonDecode(response.body);
           final result = ReportUserResponse.fromJson(json);
-          
-          
           return result;
         } else if (response.statusCode == 400) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 400, error: 'Bad request');
           final json = jsonDecode(response.body);
-          
           return ReportUserResponse.fromJson(json);
         } else if (response.statusCode == 404) {
-          
+          ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
           return null;
         } else if (response.statusCode == 422) {
-          
+          ApiLogger.logApiError(endpoint: url, statusCode: 422, error: 'Validation error');
           return null;
         } else {
-          
+          ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to report user');
           return null;
         }
       } else {
+        // Regular POST without files
+        // FIX: API expects 'reason' not 'category'
+        final body = {
+          'reason': reason,
+          'description': description,
+        };
+
+        ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
+
         final response = await http.post(
           Uri.parse(url),
           headers: {
@@ -359,38 +365,31 @@ class UserService {
             'Accept': 'application/json',
             'Authorization': 'Bearer $token',
           },
-          body: jsonEncode({
-            'category': category,
-            'description': description,
-          }),
+          body: jsonEncode(body),
         );
 
-        
-        
-
         if (response.statusCode == 200 || response.statusCode == 201) {
+          ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
           final json = jsonDecode(response.body);
           final result = ReportUserResponse.fromJson(json);
-          
-          
           return result;
         } else if (response.statusCode == 400) {
+          ApiLogger.logApiError(endpoint: url, statusCode: 400, error: 'Bad request');
           final json = jsonDecode(response.body);
-          
           return ReportUserResponse.fromJson(json);
         } else if (response.statusCode == 404) {
-          
+          ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
           return null;
         } else if (response.statusCode == 422) {
-          
+          ApiLogger.logApiError(endpoint: url, statusCode: 422, error: 'Validation error');
           return null;
         } else {
-          
+          ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to report user');
           return null;
         }
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }

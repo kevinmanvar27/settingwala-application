@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
 import '../Service/sugar_partner_service.dart';
@@ -523,10 +524,10 @@ class _SugarPartnerExchangesScreenState extends State<SugarPartnerExchangesScree
                   ),
                   child: ClipOval(
                     child: otherUser?.profilePhoto != null
-                        ? Image.network(
-                            otherUser!.profilePhoto!,
+                        ? CachedImage(
+                            imageUrl: otherUser!.profilePhoto!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildDefaultAvatar(colors, avatarSize),
+                            errorWidget: _buildDefaultAvatar(colors, avatarSize),
                           )
                         : _buildDefaultAvatar(colors, avatarSize),
                   ),

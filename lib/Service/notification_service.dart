@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/GetnotificatonsModel.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 
 class UnreadCountResponse {
@@ -198,22 +199,16 @@ class NotificationService {
   }
 
   static Future<GetnotificationsModel?> getNotifications({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/notifications?page=$page';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications?page=$page';
-      
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -224,23 +219,20 @@ class NotificationService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = _parseNotificationsResponse(json);
-        
-        
-        
-        
         return result;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
@@ -345,21 +337,16 @@ class NotificationService {
 
 
   static Future<UnreadCountResponse?> getUnreadCount() async {
+    final url = '${ApiConstants.baseUrl}/notifications/unread-count';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/unread-count';
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -370,40 +357,35 @@ class NotificationService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = UnreadCountResponse.fromJson(json);
-        
         return result;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<MarkAllReadResponse?> markAllAsRead() async {
+    final url = '${ApiConstants.baseUrl}/notifications/mark-all-read';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/mark-all-read';
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -414,40 +396,35 @@ class NotificationService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = MarkAllReadResponse.fromJson(json);
-        
         return result;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<ClearAllNotificationsResponse?> clearAll() async {
+    final url = '${ApiConstants.baseUrl}/notifications/clear-all';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/clear-all';
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -458,40 +435,35 @@ class NotificationService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = ClearAllNotificationsResponse.fromJson(json);
-        
         return result;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<GetPreferencesResponse?> getPreferences() async {
+    final url = '${ApiConstants.baseUrl}/notifications/preferences';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/preferences';
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -502,26 +474,20 @@ class NotificationService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = GetPreferencesResponse.fromJson(json);
-        
-        
-        
-        
-        
-        
-        
         return result;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
@@ -534,31 +500,25 @@ class NotificationService {
     bool? paymentNotifications,
     bool? promotionalNotifications,
   }) async {
+    final url = '${ApiConstants.baseUrl}/notifications/preferences';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/preferences';
-      
+      // FIX: API expects 'push_notifications' and 'email_notifications' (API Section 12.6)
       final Map<String, dynamic> body = {};
-      if (pushEnabled != null) body['push_enabled'] = pushEnabled;
-      if (emailEnabled != null) body['email_enabled'] = emailEnabled;
+      if (pushEnabled != null) body['push_notifications'] = pushEnabled;
+      if (emailEnabled != null) body['email_notifications'] = emailEnabled;
       if (bookingNotifications != null) body['booking_notifications'] = bookingNotifications;
       if (chatNotifications != null) body['chat_notifications'] = chatNotifications;
       if (paymentNotifications != null) body['payment_notifications'] = paymentNotifications;
       if (promotionalNotifications != null) body['promotional_notifications'] = promotionalNotifications;
 
-      
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
       final response = await http.put(
         Uri.parse(url),
@@ -570,41 +530,35 @@ class NotificationService {
         body: jsonEncode(body),
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = UpdatePreferencesResponse.fromJson(json);
-        
         return result;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<MarkAsReadResponse?> markAsRead(int notificationId) async {
+    final url = '${ApiConstants.baseUrl}/notifications/$notificationId/mark-read';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/$notificationId/mark-read';
-      
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -615,44 +569,39 @@ class NotificationService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = MarkAsReadResponse.fromJson(json);
-        
         return result;
       } else if (response.statusCode == 404) {
-        
+        // API call નિષ્ફળ થઈ - Not found
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Notification not found');
         return null;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<DeleteNotificationResponse?> deleteNotification(int notificationId) async {
+    final url = '${ApiConstants.baseUrl}/notifications/$notificationId';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/$notificationId';
-      
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -663,23 +612,24 @@ class NotificationService {
         },
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = DeleteNotificationResponse.fromJson(json);
-        
         return result;
       } else if (response.statusCode == 404) {
-        
+        // API call નિષ્ફળ થઈ - Not found
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Notification not found');
         return null;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
@@ -689,32 +639,25 @@ class NotificationService {
     required String deviceType,
     String? deviceId,
   }) async {
+    final url = '${ApiConstants.baseUrl}/notifications/fcm-token';
     try {
       final authToken = await _getToken();
 
       if (authToken == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/fcm-token';
-      
+      // FIX: API expects 'fcm_token' not 'token' (API Section 12.7)
       final Map<String, dynamic> body = {
-        'token': token,
+        'fcm_token': token,
         'device_type': deviceType,
       };
       if (deviceId != null && deviceId.isNotEmpty) {
         body['device_id'] = deviceId;
       }
 
-      
-      
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'device_type': deviceType});
 
       final response = await http.post(
         Uri.parse(url),
@@ -726,23 +669,24 @@ class NotificationService {
         body: jsonEncode(body),
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = FcmTokenResponse.fromJson(json);
-        
         return result;
       } else if (response.statusCode == 422) {
-        
+        // API call નિષ્ફળ થઈ - Validation error
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Validation error');
         return null;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
@@ -750,27 +694,21 @@ class NotificationService {
   static Future<FcmTokenResponse?> removeFcmToken({
     required String token,
   }) async {
+    final url = '${ApiConstants.baseUrl}/notifications/fcm-token';
     try {
       final authToken = await _getToken();
 
       if (authToken == null) {
-        
         return null;
       }
 
-      final url = '${ApiConstants.baseUrl}/notifications/fcm-token';
-      
+      // FIX: API expects 'fcm_token' not 'token' (API Section 12.8)
       final Map<String, dynamic> body = {
-        'token': token,
+        'fcm_token': token,
       };
 
-      
-      
-      
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -782,23 +720,24 @@ class NotificationService {
         body: jsonEncode(body),
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = FcmTokenResponse.fromJson(json);
-        
         return result;
       } else if (response.statusCode == 422) {
-        
+        // API call નિષ્ફળ થઈ - Validation error
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Validation error');
         return null;
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }

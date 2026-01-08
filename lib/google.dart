@@ -63,8 +63,7 @@ class GoogleAuthService {
     String? avatar,
   }) async {
     try {
-      print('DEBUG: Calling API: ${ApiConstants.googleLogin}');
-      print('DEBUG: Email: $email');
+
       
       final response = await http.post(
         Uri.parse(ApiConstants.googleLogin),
@@ -80,8 +79,7 @@ class GoogleAuthService {
         }),
       );
 
-      print('DEBUG: Response status: ${response.statusCode}');
-      print('DEBUG: Response body: ${response.body}');
+
       
       final data = jsonDecode(response.body);
 
@@ -91,7 +89,7 @@ class GoogleAuthService {
         throw Exception(data['message'] ?? 'Login failed');
       }
     } catch (e) {
-      print('DEBUG: Error in _sendToBackend: $e');
+
       rethrow;
     }
   }

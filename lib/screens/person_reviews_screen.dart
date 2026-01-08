@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../widgets/base_screen.dart';
-import '../Service/review_service.dart';
+import '../Service/user_service.dart';
 
 class PersonReviewsScreen extends StatefulWidget {
   final Map<String, dynamic> person;
@@ -15,7 +15,7 @@ class PersonReviewsScreen extends StatefulWidget {
 class _PersonReviewsScreenState extends State<PersonReviewsScreen> {
   bool _isLoading = true;
   String? _errorMessage;
-  List<ReviewData> _reviews = [];
+  List<UserReviewItem> _reviews = [];
   double _averageRating = 0.0;
   int _totalReviews = 0;
   
@@ -55,30 +55,32 @@ class _PersonReviewsScreenState extends State<PersonReviewsScreen> {
         return;
       }
       
-      final response = await ReviewService.getReviews(userId: userId, page: page);
+      // FIX: Using UserService.getUserReviews() instead of removed ReviewService.getReviews()
+      // API endpoint: GET /users/{id}/reviews (Section 5.4)
+      final response = await UserService.getUserReviews(userId: userId, page: page);
       
-      if (response.success) {
+      if (response != null && response.success) {
         setState(() {
           if (loadMore) {
-            _reviews.addAll(response.data);
+            _reviews.addAll(response.reviews);
           } else {
-            _reviews = response.data;
+            _reviews = response.reviews;
             _ratingDistribution = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
             for (var review in _reviews) {
-              final rating = review.rating.clamp(1, 5);
+              final rating = review.rating.toInt().clamp(1, 5);
               _ratingDistribution[rating] = (_ratingDistribution[rating] ?? 0) + 1;
             }
           }
-          _averageRating = response.averageRating ?? (widget.person['rating'] ?? 0.0).toDouble();
-          _totalReviews = response.totalReviews ?? response.data.length;
-          _currentPage = response.pagination?.currentPage ?? page;
-          _lastPage = response.pagination?.lastPage ?? 1;
+          _averageRating = response.averageRating;
+          _totalReviews = response.totalReviews;
+          _currentPage = response.pagination.currentPage;
+          _lastPage = response.pagination.lastPage;
           _isLoading = false;
           _isLoadingMore = false;
         });
       } else {
         setState(() {
-          _errorMessage = response.message;
+          _errorMessage = 'Failed to load reviews';
           _isLoading = false;
           _isLoadingMore = false;
           _averageRating = (widget.person['rating'] ?? 0.0).toDouble();
@@ -452,7 +454,7 @@ class _PersonReviewsScreenState extends State<PersonReviewsScreen> {
     );
   }
 
-  Widget _buildReviewCard(ReviewData review, AppColorSet colors, Color primaryColor) {
+  Widget _buildReviewCard(UserReviewItem review, AppColorSet colors, Color primaryColor) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
     final isTablet = screenWidth >= 600;
@@ -466,11 +468,12 @@ class _PersonReviewsScreenState extends State<PersonReviewsScreen> {
     final commentFontSize = isDesktop ? 15.0 : isTablet ? 14.0 : isSmallScreen ? 12.0 : 13.0;
     final starSize = isDesktop ? 20.0 : isTablet ? 18.0 : 16.0;
     
+    // FIX: Updated to use UserReviewItem model from UserService.getUserReviews()
     final reviewerName = review.reviewer?.name ?? 'Anonymous';
-    final reviewerPhoto = review.reviewer?.profilePhoto;
-    final rating = review.rating;
+    final reviewerPhoto = review.reviewer?.profilePicture;
+    final rating = review.rating.toInt();
     final comment = review.review ?? '';
-    final date = _formatDate(review.createdAt);
+    final date = _formatDateFromDateTime(review.createdAt);
 
     return Container(
       margin: EdgeInsets.only(bottom: isTablet ? 16 : 12),
@@ -552,15 +555,10 @@ class _PersonReviewsScreenState extends State<PersonReviewsScreen> {
     );
   }
   
-  String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '';
-    try {
-      final date = DateTime.parse(dateStr);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${date.day} ${months[date.month - 1]} ${date.year}';
-    } catch (e) {
-      return dateStr;
-    }
+  // FIX: Updated to handle DateTime directly from UserReviewItem
+  String _formatDateFromDateTime(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }

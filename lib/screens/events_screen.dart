@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import '../theme/theme.dart';
 import '../Service/event_service.dart';
 import '../routes/app_routes.dart';
+import '../utils/debouncer.dart';
 
 class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
@@ -18,6 +19,7 @@ class _EventsScreenState extends State<EventsScreen> with TickerProviderStateMix
   late Animation<Offset> _slideAnimation;
   
   final TextEditingController _searchController = TextEditingController();
+  final Debouncer _searchDebouncer = Debouncer(milliseconds: 300);
   bool _isSearching = false;
   
   bool _isLoading = true;
@@ -95,6 +97,7 @@ class _EventsScreenState extends State<EventsScreen> with TickerProviderStateMix
   void dispose() {
     _animationController.dispose();
     _searchController.dispose();
+    _searchDebouncer.dispose();
     super.dispose();
   }
 
@@ -148,8 +151,11 @@ class _EventsScreenState extends State<EventsScreen> with TickerProviderStateMix
                 child: TextField(
                   controller: _searchController,
                   onChanged: (value) {
-                    setState(() {
-                      _isSearching = value.isNotEmpty;
+                    // Debounce search to reduce unnecessary rebuilds
+                    _searchDebouncer.run(() {
+                      setState(() {
+                        _isSearching = value.isNotEmpty;
+                      });
                     });
                   },
                   style: TextStyle(fontSize: searchHintSize),

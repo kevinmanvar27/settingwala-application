@@ -27,6 +27,7 @@ class ChatScreen extends StatefulWidget {
   final String? profileImage;
   final DateTime meetingTime;
   final int bookingId;
+  final int? otherUserId; // For block user functionality
 
   const ChatScreen({
     super.key,
@@ -34,6 +35,7 @@ class ChatScreen extends StatefulWidget {
     this.profileImage,
     required this.meetingTime,
     required this.bookingId,
+    this.otherUserId,
   });
 
   @override
@@ -55,12 +57,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   Timer? _refreshTimer;
   static const int _refreshIntervalSeconds = 5;
   
-  // Typing indicator state
-  bool _isOtherUserTyping = false;
-  Timer? _typingTimer;
-  Timer? _typingStatusTimer;
-  bool _iAmTyping = false;
-  static const int _typingTimeoutSeconds = 3; // Stop showing typing after 3 seconds of no update
+  // FIX: Typing indicator removed - API endpoints /chat/booking/{bookingId}/typing 
+  // do not exist in API documentation (Section 11: Chat Routes)
+  // Keeping state variables for potential future implementation
+  // bool _isOtherUserTyping = false;
+  // Timer? _typingTimer;
+  // Timer? _typingStatusTimer;
+  // bool _iAmTyping = false;
+  // static const int _typingTimeoutSeconds = 3;
   
   @override
   void initState() {
@@ -84,10 +88,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _initializeChat();
     
     _startAutoRefresh();
-    _startTypingStatusPolling();
+    // FIX: Removed _startTypingStatusPolling() - API endpoint doesn't exist
     
-    // Listen to text changes for typing indicator
-    _messageController.addListener(_onTextChanged);
+    // FIX: Removed typing indicator listener - API endpoint doesn't exist
+    // _messageController.addListener(_onTextChanged);
   }
 
   @override
@@ -96,14 +100,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     if (state == AppLifecycleState.resumed) {
       _loadMessages();
       _startAutoRefresh();
-      _startTypingStatusPolling();
+      // FIX: Removed _startTypingStatusPolling() - API endpoint doesn't exist
     } else if (state == AppLifecycleState.paused) {
       _stopAutoRefresh();
-      _stopTypingStatusPolling();
-      // Send stop typing when app goes to background
-      if (_iAmTyping) {
-        _sendTypingStatus(false);
-      }
+      // FIX: Removed _stopTypingStatusPolling() and _sendTypingStatus() - API endpoint doesn't exist
     }
   }
 
@@ -120,79 +120,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     _refreshTimer = null;
   }
 
-  // ==================== TYPING INDICATOR METHODS ====================
-  
-  /// Start polling for other user's typing status
-  void _startTypingStatusPolling() {
-    _stopTypingStatusPolling();
-    // Poll every 2 seconds for typing status
-    _typingStatusTimer = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) => _checkTypingStatus(),
-    );
-  }
-
-  void _stopTypingStatusPolling() {
-    _typingStatusTimer?.cancel();
-    _typingStatusTimer = null;
-  }
-
-  /// Check if other user is typing
-  Future<void> _checkTypingStatus() async {
-    try {
-      final response = await MessageService.getTypingStatus(widget.bookingId);
-      if (response != null && response.success && mounted) {
-        setState(() {
-          _isOtherUserTyping = response.isTyping;
-        });
-      }
-    } catch (e) {
-      // Silently fail - typing indicator is not critical
-    }
-  }
-
-  /// Called when text field content changes
-  void _onTextChanged() {
-    final hasText = _messageController.text.isNotEmpty;
-    
-    if (hasText && !_iAmTyping) {
-      // Started typing
-      _iAmTyping = true;
-      _sendTypingStatus(true);
-    }
-    
-    // Reset typing timeout timer
-    _typingTimer?.cancel();
-    if (hasText) {
-      _typingTimer = Timer(
-        Duration(seconds: _typingTimeoutSeconds),
-        () {
-          // User stopped typing (no input for 3 seconds)
-          if (_iAmTyping) {
-            _iAmTyping = false;
-            _sendTypingStatus(false);
-          }
-        },
-      );
-    } else {
-      // Text is empty - stop typing
-      if (_iAmTyping) {
-        _iAmTyping = false;
-        _sendTypingStatus(false);
-      }
-    }
-  }
-
-  /// Send typing status to server
-  Future<void> _sendTypingStatus(bool isTyping) async {
-    try {
-      await MessageService.sendTypingStatus(widget.bookingId, isTyping);
-    } catch (e) {
-      // Silently fail - typing indicator is not critical
-    }
-  }
-
-  // ==================== END TYPING INDICATOR METHODS ====================
+  // FIX: Removed typing indicator methods - API endpoints don't exist
+  // The following methods were removed:
+  // - _startTypingStatusPolling()
+  // - _stopTypingStatusPolling()
+  // - _checkTypingStatus()
+  // - _onTextChanged()
+  // - _sendTypingStatus()
+  // API endpoint /chat/booking/{bookingId}/typing is NOT in API_DOCUMENTATION.txt
 
   Future<void> _loadMessagesQuietly() async {
     try {
@@ -312,9 +247,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   @override
   void dispose() {
     _stopAutoRefresh();
-    _stopTypingStatusPolling();
-    _typingTimer?.cancel();
-    _messageController.removeListener(_onTextChanged);
+    // FIX: Removed _typingTimer?.cancel() - typing indicator removed
+    // FIX: Removed _messageController.removeListener(_onTextChanged) - typing indicator removed
     WidgetsBinding.instance.removeObserver(this);
     _messageController.dispose();
     _scrollController.dispose();
@@ -421,10 +355,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
     return months[month - 1];
   }
 
-  /// Build animated typing dots indicator
-  Widget _buildTypingDots(Color color) {
-    return _TypingDotsAnimation(color: color);
-  }
+  // FIX: Removed _buildTypingDots() method - typing indicator removed
+  // API endpoint /chat/booking/{bookingId}/typing does not exist
 
   @override
   Widget build(BuildContext context) {
@@ -480,9 +412,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
         showBackButton: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.info_outline, size: actionIconSize),
+            icon: Icon(Icons.block, size: actionIconSize, color: AppColors.error),
+            tooltip: 'Block User',
             onPressed: () {
-              _showProfileInfo(context, colors, primaryColor);
+              _showBlockUserDialog(context, colors, primaryColor);
             },
           ),
         ],
@@ -665,27 +598,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                               ),
               ),
               
-              // Typing indicator
-              if (_isOtherUserTyping)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: inputBarPaddingH, vertical: 8),
-                  color: colors.card.withOpacity(0.5),
-                  child: Row(
-                    children: [
-                      SizedBox(width: 8),
-                      _buildTypingDots(primaryColor),
-                      SizedBox(width: 8),
-                      Text(
-                        '${widget.profileName} is typing...',
-                        style: TextStyle(
-                          color: colors.textTertiary,
-                          fontSize: 13,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              // FIX: Typing indicator removed - API endpoint /chat/booking/{bookingId}/typing
+              // does not exist in API documentation (Section 11: Chat Routes)
               
               // Input bar
               Container(
@@ -693,20 +607,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
                 color: colors.card,
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.attach_file,
-                        color: colors.textTertiary,
-                        size: inputIconSize,
-                      ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Attachment feature coming soon'),
-                          ),
-                        );
-                      },
-                    ),
                     Expanded(
                       child: TextField(
                         controller: _messageController,
@@ -780,62 +680,295 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }) {
     return Align(
       alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.only(bottom: marginBottom),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * maxWidthFactor,
-        ),
-        decoration: BoxDecoration(
-          color: message.isMe 
-              ? colors.card
-              : primaryColor,
-          borderRadius: BorderRadius.circular(radius).copyWith(
-            bottomRight: message.isMe ? const Radius.circular(0) : null,
-            bottomLeft: !message.isMe ? const Radius.circular(0) : null,
+      child: GestureDetector(
+        onLongPress: message.isMe ? () => _showDeleteMessageDialog(message, colors, primaryColor) : null,
+        child: Container(
+          margin: EdgeInsets.only(bottom: marginBottom),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * maxWidthFactor,
           ),
-        ),
-        padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              message.text,
-              style: TextStyle(
-                color: message.isMe ? colors.textPrimary : Colors.white,
-                fontSize: textSize,
-              ),
+          decoration: BoxDecoration(
+            color: message.isMe 
+                ? colors.card
+                : primaryColor,
+            borderRadius: BorderRadius.circular(radius).copyWith(
+              bottomRight: message.isMe ? const Radius.circular(0) : null,
+              bottomLeft: !message.isMe ? const Radius.circular(0) : null,
             ),
-            SizedBox(height: paddingV * 0.4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _formatTime(message.time),
-                  style: TextStyle(
-                    color: message.isMe 
-                        ? colors.textTertiary 
-                        : Colors.white.withOpacity(0.7),
-                    fontSize: timeSize,
-                  ),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                message.text,
+                style: TextStyle(
+                  color: message.isMe ? colors.textPrimary : Colors.white,
+                  fontSize: textSize,
                 ),
-                if (message.isMe) ...[
-                  SizedBox(width: paddingV * 0.4),
-                  Icon(
-                    message.isRead ? Icons.done_all : Icons.done,
-                    size: readIconSize,
-                    color: message.isRead 
-                        ? Colors.blue 
-                        : colors.textTertiary,
+              ),
+              SizedBox(height: paddingV * 0.4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatTime(message.time),
+                    style: TextStyle(
+                      color: message.isMe 
+                          ? colors.textTertiary 
+                          : Colors.white.withOpacity(0.7),
+                      fontSize: timeSize,
+                    ),
                   ),
+                  if (message.isMe) ...[
+                    SizedBox(width: paddingV * 0.4),
+                    Icon(
+                      message.isRead ? Icons.done_all : Icons.done,
+                      size: readIconSize,
+                      color: message.isRead 
+                          ? Colors.blue 
+                          : colors.textTertiary,
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  void _showDeleteMessageDialog(ChatMessage message, AppColorSet colors, Color primaryColor) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.delete_outline, color: AppColors.error),
+            const SizedBox(width: 8),
+            Text(
+              'Delete Message',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete this message? This action cannot be undone.',
+          style: TextStyle(color: colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessage(message);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteMessage(ChatMessage message) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final response = await MessageService.deleteMessage(int.parse(message.id));
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading
+
+        if (response != null && response.success) {
+          setState(() {
+            _messages.removeWhere((m) => m.id == message.id);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response?.message ?? 'Failed to delete message'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting message: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
   
+  void _showBlockUserDialog(BuildContext context, AppColorSet colors, Color primaryColor) {
+    if (widget.otherUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to block user. User ID not available.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.block, color: AppColors.error),
+            const SizedBox(width: 8),
+            Text(
+              'Block User',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to block ${widget.profileName}? You will no longer be able to chat with them.',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                labelText: 'Reason (optional)',
+                labelStyle: TextStyle(color: colors.textTertiary),
+                hintText: 'e.g., Spam messages, Inappropriate behavior',
+                hintStyle: TextStyle(color: colors.textTertiary.withOpacity(0.7), fontSize: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.error),
+                ),
+              ),
+              style: TextStyle(color: colors.textPrimary),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              reasonController.dispose();
+              Navigator.pop(context);
+            },
+            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final reason = reasonController.text.trim();
+              reasonController.dispose();
+              Navigator.pop(context);
+              _blockUser(reason);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _blockUser(String reason) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final response = await MessageService.blockUser(widget.otherUserId!, reason: reason);
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading
+
+        if (response != null && response.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+          // Go back to chat list
+          Navigator.of(context).pop();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response?.message ?? 'Failed to block user'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error blocking user: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
   void _showProfileInfo(BuildContext context, AppColorSet colors, Color primaryColor) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
@@ -1025,69 +1158,5 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin, 
   }
 }
 
-/// Animated typing dots widget
-class _TypingDotsAnimation extends StatefulWidget {
-  final Color color;
-  
-  const _TypingDotsAnimation({required this.color});
-  
-  @override
-  State<_TypingDotsAnimation> createState() => _TypingDotsAnimationState();
-}
-
-class _TypingDotsAnimationState extends State<_TypingDotsAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    )..repeat();
-  }
-  
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-  
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return SizedBox(
-          width: 28,
-          height: 16,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(3, (index) {
-              // Calculate animation phase for each dot (staggered)
-              final phase = (_controller.value + (index * 0.33)) % 1.0;
-              // Create bounce effect
-              final bounce = phase < 0.5 
-                  ? phase * 2 
-                  : 2 - (phase * 2);
-              final offset = -4 * bounce;
-              
-              return Transform.translate(
-                offset: Offset(0, offset),
-                child: Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: widget.color.withOpacity(0.8),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              );
-            }),
-          ),
-        );
-      },
-    );
-  }
-}
+// FIX: Removed _TypingDotsAnimation class - typing indicator removed
+// API endpoint /chat/booking/{bookingId}/typing does not exist in API documentation

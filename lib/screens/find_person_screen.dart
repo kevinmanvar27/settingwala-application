@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/app_colors.dart';
 import '../utils/responsive.dart';
+import '../utils/debouncer.dart';
 import '../routes/app_routes.dart';  // Add route-based navigation
 import '../Service/user_service.dart';
 import '../model/getusersmodel.dart';
@@ -19,6 +21,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
   late Animation<double> _fadeAnimation;
   
   final TextEditingController _searchController = TextEditingController();
+  final Debouncer _searchDebouncer = Debouncer(milliseconds: 300);
   bool _isSearching = false;
   
   RangeValues _priceRange = const RangeValues(_defaultPriceMin, _defaultPriceMax);
@@ -48,19 +51,41 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
     }
     
     return _people.where((person) {
+      // Search filter - matches name, location, city, state, bio
+      final searchLower = _searchController.text.toLowerCase();
       bool matchesSearch = _searchController.text.isEmpty || 
-          (person['name']?.toString().toLowerCase().contains(_searchController.text.toLowerCase()) ?? false) ||
-          (person['location']?.toString().toLowerCase().contains(_searchController.text.toLowerCase()) ?? false);
+          (person['name']?.toString().toLowerCase().contains(searchLower) ?? false) ||
+          (person['location']?.toString().toLowerCase().contains(searchLower) ?? false) ||
+          (person['city']?.toString().toLowerCase().contains(searchLower) ?? false) ||
+          (person['state']?.toString().toLowerCase().contains(searchLower) ?? false) ||
+          (person['bio']?.toString().toLowerCase().contains(searchLower) ?? false);
       
-      bool matchesGender = _selectedGenders.contains(person['gender']);
+      // Gender filter - handle null/empty gender values
+      final personGender = person['gender']?.toString() ?? '';
+      bool matchesGender = _selectedGenders.length == 2 || 
+          _selectedGenders.any((g) => g.toLowerCase() == personGender.toLowerCase());
       
+      // Location filter - check location, city, and state
+      final locationLower = _locationFilter.toLowerCase();
       bool matchesLocation = _locationFilter.isEmpty || 
-          (person['location']?.toString().toLowerCase().contains(_locationFilter.toLowerCase()) ?? false);
+          (person['location']?.toString().toLowerCase().contains(locationLower) ?? false) ||
+          (person['city']?.toString().toLowerCase().contains(locationLower) ?? false) ||
+          (person['state']?.toString().toLowerCase().contains(locationLower) ?? false);
       
-      double personPrice = (person['price'] as num?)?.toDouble() ?? 0;
+      // Price filter - handle dynamic hourlyRate
+      double personPrice = 0;
+      final priceValue = person['price'];
+      if (priceValue != null) {
+        if (priceValue is num) {
+          personPrice = priceValue.toDouble();
+        } else if (priceValue is String) {
+          personPrice = double.tryParse(priceValue) ?? 0;
+        }
+      }
       bool matchesPrice = _isPriceRangeDefault || 
           (personPrice >= _priceRange.start && personPrice <= _priceRange.end);
       
+      // Date and time filter (placeholder for future implementation)
       bool matchesDateAndTime = true;
       
       return matchesSearch && matchesGender && matchesLocation && matchesPrice && matchesDateAndTime;
@@ -124,7 +149,9 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
     }
     
     String buildLocation() {
+      // Build location from city, state, or service_location
       List<String> locationParts = [];
+      
       if (user.city != null && user.city.toString().isNotEmpty) {
         locationParts.add(user.city.toString());
       }
@@ -132,7 +159,23 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
         locationParts.add(user.state.toString());
       }
       
-      return locationParts.isEmpty ? 'Unknown' : locationParts.join(', ');
+      if (locationParts.isNotEmpty) {
+        return locationParts.join(', ');
+      }
+      
+      // Fallback to service_location
+      if (user.serviceLocation != null && user.serviceLocation.toString().isNotEmpty) {
+        return user.serviceLocation.toString();
+      }
+      return '';
+    }
+    
+    // Parse hourly rate properly
+    double parseHourlyRate() {
+      if (user.hourlyRate == null) return 0;
+      if (user.hourlyRate is num) return (user.hourlyRate as num).toDouble();
+      if (user.hourlyRate is String) return double.tryParse(user.hourlyRate) ?? 0;
+      return 0;
     }
     
     return {
@@ -140,10 +183,13 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
       'name': user.name,
       'age': user.age ?? 0,
       'location': buildLocation(),
+      'city': user.city?.toString() ?? '',
+      'state': user.state?.toString() ?? '',
+      'serviceLocation': user.serviceLocation?.toString() ?? '',
       'distance': '${(user.id % 5) + 1}.${user.id % 10} km away',
-      'bio': user.bio ?? 'No bio available',
-      'gender': user.gender ?? 'Female',
-      'price': double.tryParse(user.hourlyRate) ?? 0,
+      'bio': user.bio?.toString() ?? 'No bio available',
+      'gender': user.gender ?? '',
+      'price': parseHourlyRate(),
       'rating': user.rating?.toDouble() ?? 4.5,
       'reviews': user.reviewsCount ?? 0,
       'isOnline': user.isOnline,
@@ -167,6 +213,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
   void dispose() {
     _animationController.dispose();
     _searchController.dispose();
+    _searchDebouncer.dispose();
     super.dispose();
   }
 
@@ -551,6 +598,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () {
+                            // Reset filter values in bottom sheet
                             setState(() {
                               _selectedGenders = ['Male', 'Female'];
                               _locationFilter = '';
@@ -559,6 +607,8 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
                               _selectedTime = null;
                               _priceRange = const RangeValues(_defaultPriceMin, _defaultPriceMax);
                             });
+                            // Also update parent state to refresh list
+                            this.setState(() {});
                           },
                           style: OutlinedButton.styleFrom(
                             padding: EdgeInsets.symmetric(vertical: buttonPadding),
@@ -663,8 +713,11 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
                       child: TextField(
                         controller: _searchController,
                         onChanged: (value) {
-                          setState(() {
-                            _isSearching = value.isNotEmpty;
+                          // Debounce search to reduce unnecessary rebuilds
+                          _searchDebouncer.run(() {
+                            setState(() {
+                              _isSearching = value.isNotEmpty;
+                            });
                           });
                         },
                         style: TextStyle(fontSize: searchHintSize),
@@ -872,33 +925,24 @@ class PersonCard extends StatelessWidget {
                       width: double.infinity,
                       color: isFemale ? Colors.pink.shade100 : Colors.blue.shade100,
                       child: person['image'] != null && person['image'].toString().isNotEmpty
-                          ? Image.network(
-                              person['image'],
+                          ? CachedImage(
+                              imageUrl: person['image'],
                               width: double.infinity,
                               height: double.infinity,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Center(
-                                  child: Icon(
-                                    isFemale ? Icons.face_3 : Icons.face,
-                                    size: iconSize,
-                                    color: isFemale ? Colors.pink.shade300 : Colors.blue.shade300,
-                                  ),
-                                );
-                              },
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                        : null,
-                                    strokeWidth: 2,
-                                    color: primaryColor,
-                                  ),
-                                );
-                              },
+                              placeholder: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: primaryColor,
+                                ),
+                              ),
+                              errorWidget: Center(
+                                child: Icon(
+                                  isFemale ? Icons.face_3 : Icons.face,
+                                  size: iconSize,
+                                  color: isFemale ? Colors.pink.shade300 : Colors.blue.shade300,
+                                ),
+                              ),
                             )
                           : Center(
                               child: Icon(
@@ -990,27 +1034,29 @@ class PersonCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: locationFontSize,
-                          color: primaryColor,
-                        ),
-                        SizedBox(width: 2),
-                        Expanded(
-                          child: Text(
-                            person['location'],
-                            style: TextStyle(
-                              fontSize: locationFontSize,
-                              color: colors.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    // Only show location if service_location is available
+                    if (person['location'] != null && person['location'].toString().isNotEmpty)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: locationFontSize,
+                            color: primaryColor,
                           ),
-                        ),
-                      ],
-                    ),
+                          SizedBox(width: 2),
+                          Expanded(
+                            child: Text(
+                              person['location'],
+                              style: TextStyle(
+                                fontSize: locationFontSize,
+                                color: colors.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,

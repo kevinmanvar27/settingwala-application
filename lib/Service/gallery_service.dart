@@ -6,6 +6,7 @@ import '../model/getgalerymodel.dart';
 import '../model/postgalerymodel.dart';
 import '../model/deleteGalerymodel.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 
 class GalleryOrderItem {
@@ -50,16 +51,19 @@ class GalleryService {
   }
 
   static Future<GetgaleryModel?> getGallery() async {
+    final url = '${ApiConstants.baseUrl}/gallery';
     try {
       final token = await _getToken();
       
       if (token == null) {
-        
         return null;
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/gallery'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -67,36 +71,38 @@ class GalleryService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return GetgaleryModel.fromJson(data);
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get gallery');
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<postgalerymodel?> uploadImage(File imageFile) async {
+    final url = '${ApiConstants.baseUrl}/gallery/upload';
     try {
       final token = await _getToken();
       
       if (token == null) {
-        
         return null;
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'image': 'file'});
+
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('${ApiConstants.baseUrl}/gallery/upload'),
+        Uri.parse(url),
       );
 
       request.headers.addAll({
@@ -111,41 +117,40 @@ class GalleryService {
         ),
       );
 
-      
-      
-
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      
-      
-      
-      
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return postgalerymodel.fromJson(data);
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to upload image');
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
   static Future<deleteGaleryModel?> deleteImage(int imageId) async {
+    final url = '${ApiConstants.baseUrl}/gallery/$imageId';
     try {
       final token = await _getToken();
       
       if (token == null) {
-        
         return null;
       }
 
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
+
       final response = await http.delete(
-        Uri.parse('${ApiConstants.baseUrl}/gallery/$imageId'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -153,44 +158,43 @@ class GalleryService {
         },
       );
 
-      
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return deleteGaleryModel.fromJson(data);
       } else {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to delete image');
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
 
 
-  static Future<ReorderGalleryResponse?> reorderImages(List<GalleryOrderItem> order) async {
+  /// FIX: API Section 4.3 expects 'order' as simple array of IDs [3, 1, 2]
+  /// Not objects with id/sort_order
+  static Future<ReorderGalleryResponse?> reorderImages(List<int> imageIds) async {
+    final url = '${ApiConstants.baseUrl}/gallery/reorder';
     try {
       final token = await _getToken();
 
       if (token == null) {
-        
         return null;
       }
-
-      final url = '${ApiConstants.baseUrl}/gallery/reorder';
       
+      // FIX: API expects simple array of image IDs, not objects
       final body = {
-        'order': order.map((item) => item.toJson()).toList(),
+        'order': imageIds,  // [3, 1, 2] format as per API spec
       };
 
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
+
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -201,23 +205,23 @@ class GalleryService {
         body: jsonEncode(body),
       );
 
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         final result = ReorderGalleryResponse.fromJson(json);
-        
         return result;
       } else if (response.statusCode == 422) {
-        
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Validation error');
         return null;
       } else {
-        
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to reorder images');
         return null;
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }

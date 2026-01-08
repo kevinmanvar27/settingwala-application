@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 
 // Auth & Splash Screens
 import '../splashscreen.dart';
@@ -44,10 +43,12 @@ import '../screens/notifications_list_screen.dart';
 // Wallet & Subscription Screens
 import '../screens/wallet_screen.dart';
 import '../screens/subscription_screen.dart';
+import '../screens/subscription_history_screen.dart';
 
 // Event Screens
 import '../screens/events_screen.dart';
 import '../screens/event_details_screen.dart';
+import '../screens/my_events_screen.dart';
 
 // Activity Screens
 import '../screens/couple_activity_screen.dart';
@@ -63,6 +64,9 @@ import '../screens/rejections_screen.dart';
 import '../screens/theme_demo_screen.dart';
 import '../screens/example_screen.dart';
 import '../screens/slider_demo_screen.dart';
+import '../screens/location_map_screen.dart';
+import '../screens/location_demo_screen.dart';
+
 
 // Seven Screens (Info pages)
 import '../screens/seven/About.dart';
@@ -125,10 +129,12 @@ class AppRoutes {
   // Wallet & Subscription
   static const String wallet = '/wallet';
   static const String subscription = '/subscription';
+  static const String subscriptionHistory = '/subscription-history';
   
   // Events
   static const String events = '/events';
   static const String eventDetails = '/event-details';
+  static const String myEvents = '/my-events-history';
   
   // Activities
   static const String coupleActivity = '/couple-activity';
@@ -144,6 +150,9 @@ class AppRoutes {
   static const String themeDemo = '/theme-demo';
   static const String example = '/example';
   static const String sliderDemo = '/slider-demo';
+  static const String locationMap = '/location-map';
+  static const String locationDemo = '/location-demo';
+
   
   // Seven Screens (Info pages)
   static const String about = '/about';
@@ -176,7 +185,9 @@ class AppRoutes {
     notificationsList: (context) => const NotificationsListScreen(),
     wallet: (context) => const WalletScreen(),
     subscription: (context) => const SubscriptionScreen(),
+    subscriptionHistory: (context) => const SubscriptionHistoryScreen(),
     events: (context) => const EventsScreen(),
+    myEvents: (context) => const MyEventsScreen(),
     coupleActivity: (context) => const CoupleActivityScreen(),
     timeSpending: (context) => const TimeSpendingScreen(),
     sugarPartner: (context) => const SugarPartnerScreen(),
@@ -189,6 +200,9 @@ class AppRoutes {
     themeDemo: (context) => const ThemeDemoScreen(),
     example: (context) => const ExampleScreen(),
     sliderDemo: (context) => const SliderDemoScreen(),
+    locationMap: (context) => const LocationMapScreen(),
+    locationDemo: (context) => const LocationDemoScreen(),
+
     // Seven Screens (Info pages)
     about: (context) => const AboutScreen(),
     journey: (context) => const JourneyScreen(),
@@ -212,7 +226,7 @@ class AppRoutes {
           builder: (context) => UserGalleryScreen(person: person),
         );
       
-      // Chat - requires profileName, profileImage, meetingTime, bookingId
+      // Chat - requires profileName, profileImage, meetingTime, bookingId, otherUserId
       case chat:
         final args = settings.arguments as Map<String, dynamic>;
         return MaterialPageRoute(
@@ -221,6 +235,7 @@ class AppRoutes {
             profileImage: args['profileImage'] as String?,
             meetingTime: args['meetingTime'] as DateTime,
             bookingId: args['bookingId'] as int,
+            otherUserId: args['otherUserId'] as int?,
           ),
         );
       
@@ -258,6 +273,19 @@ class AppRoutes {
         return MaterialPageRoute(
           builder: (context) => PersonBookingsScreen(person: person),
         );
+      
+      // Location Map - optional latitude, longitude, and title
+      case locationMap:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (context) => LocationMapScreen(
+            initialLatitude: args?['latitude'] as double?,
+            initialLongitude: args?['longitude'] as double?,
+            initialTitle: args?['title'] as String?,
+          ),
+        );
+      
+
       
       default:
         // Check if route exists in simple routes map
@@ -316,12 +344,14 @@ class AppRoutes {
     String? profileImage,
     required DateTime meetingTime,
     required int bookingId,
+    int? otherUserId,
   }) {
     return navigateTo(context, chat, arguments: {
       'profileName': profileName,
       'profileImage': profileImage,
       'meetingTime': meetingTime,
       'bookingId': bookingId,
+      'otherUserId': otherUserId,
     });
   }
   
@@ -340,6 +370,11 @@ class AppRoutes {
     navigateTo(context, eventDetails, arguments: event);
   }
   
+  /// Navigate to My Events (Joined Events History)
+  static void toMyEvents(BuildContext context) {
+    navigateTo(context, myEvents);
+  }
+  
   /// Navigate to Person Reviews
   static void toPersonReviews(BuildContext context, Map<String, dynamic> person) {
     navigateTo(context, personReviews, arguments: person);
@@ -349,6 +384,26 @@ class AppRoutes {
   static void toPersonBookings(BuildContext context, Map<String, dynamic> person) {
     navigateTo(context, personBookings, arguments: person);
   }
+  
+  /// Navigate to Location Map
+  static void toLocationMap(BuildContext context, {double? latitude, double? longitude, String? title}) {
+    if (latitude != null && longitude != null) {
+      navigateTo(context, locationMap, arguments: {
+        'latitude': latitude,
+        'longitude': longitude,
+        'title': title,
+      });
+    } else {
+      navigateTo(context, locationMap);
+    }
+  }
+  
+  /// Navigate to Location Demo
+  static void toLocationDemo(BuildContext context) {
+    navigateTo(context, locationDemo);
+  }
+  
+
   
   /// Navigate to Main Navigation (after login)
   static void toMainNavigation(BuildContext context) {

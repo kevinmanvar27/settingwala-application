@@ -214,12 +214,16 @@ class BookingVerification {
   final bool hasEndPhoto;
   final String? startTime;
   final String? endTime;
+  final String? startPhotoUrl;
+  final String? endPhotoUrl;
 
   BookingVerification({
     required this.hasStartPhoto,
     required this.hasEndPhoto,
     this.startTime,
     this.endTime,
+    this.startPhotoUrl,
+    this.endPhotoUrl,
   });
 
   factory BookingVerification.fromJson(Map<String, dynamic> json) {
@@ -228,6 +232,8 @@ class BookingVerification {
       hasEndPhoto: json['has_end_photo'] ?? false,
       startTime: json['start_time'],
       endTime: json['end_time'],
+      startPhotoUrl: json['start_photo_url'],
+      endPhotoUrl: json['end_photo_url'],
     );
   }
 }

@@ -38,8 +38,8 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
   final LayerLink _locationLayerLink = LayerLink();
   OverlayEntry? _locationOverlayEntry;
   
-  final TextEditingController _startTimeController = TextEditingController(text: '09:00 AM');
-  final TextEditingController _endTimeController = TextEditingController(text: '05:00 PM');
+  final TextEditingController _startTimeController = TextEditingController();
+  final TextEditingController _endTimeController = TextEditingController();
   
   Map<String, bool> _availability = {
     'Monday': false,
@@ -414,84 +414,201 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
     }
   }
 
+  // Generate 30-minute interval time slots in 24-hour format
+  List<String> _generate30MinuteTimeSlots() {
+    List<String> slots = [];
+    for (int hour = 0; hour < 24; hour++) {
+      for (int minute = 0; minute < 60; minute += 30) {
+        slots.add('${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}');
+      }
+    }
+    return slots;
+  }
+
+  // Get valid end times (must be after start time)
+  List<String> _getValidEndTimesForTimeSpending() {
+    final allSlots = _generate30MinuteTimeSlots();
+    if (_startTimeController.text.isEmpty) return allSlots;
+    
+    final startParts = _startTimeController.text.split(':');
+    final startMinutes = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
+    
+    return allSlots.where((slot) {
+      final slotParts = slot.split(':');
+      final slotMinutes = int.parse(slotParts[0]) * 60 + int.parse(slotParts[1]);
+      return slotMinutes > startMinutes;
+    }).toList();
+  }
+
   Future<void> _selectTime(BuildContext context, bool isStartTime) async {
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
     
     final currentController = isStartTime ? _startTimeController : _endTimeController;
-    TimeOfDay initialTime;
+    final List<String> timeSlots = isStartTime 
+        ? _generate30MinuteTimeSlots() 
+        : _getValidEndTimesForTimeSpending();
     
-    if (currentController.text.isEmpty) {
-      final now = DateTime.now();
-      initialTime = TimeOfDay(hour: now.hour, minute: now.minute);
-    } else {
-      try {
-        final parts = currentController.text.split(' ');
-        final timeParts = parts[0].split(':');
-        int hour = int.parse(timeParts[0]);
-        final minute = int.parse(timeParts[1]);
-        final isPM = parts[1].toUpperCase() == 'PM';
-        
-        if (isPM && hour < 12) {
-          hour += 12;
-        }
-        if (!isPM && hour == 12) {
-          hour = 0;
-        }
-        
-        initialTime = TimeOfDay(hour: hour, minute: minute);
-      } catch (e) {
-        final now = DateTime.now();
-        initialTime = TimeOfDay(hour: now.hour, minute: now.minute);
-      }
+    // Find current selected index (no default - starts at 00:00)
+    int initialIndex = 0;
+    if (currentController.text.isNotEmpty) {
+      final index = timeSlots.indexOf(currentController.text);
+      if (index >= 0) initialIndex = index;
     }
     
-    final TimeOfDay? picked = await showTimePicker(
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
+    
+    final titleFontSize = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
+    final itemFontSize = isDesktop ? 18.0 : isTablet ? 16.0 : isSmallScreen ? 14.0 : 15.0;
+    final itemHeight = isDesktop ? 50.0 : isTablet ? 45.0 : isSmallScreen ? 36.0 : 40.0;
+    final wheelHeight = isDesktop ? 250.0 : isTablet ? 220.0 : isSmallScreen ? 160.0 : 180.0;
+    final buttonFontSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;
+    final buttonPaddingH = isDesktop ? 32.0 : isTablet ? 28.0 : isSmallScreen ? 16.0 : 24.0;
+    final buttonPaddingV = isDesktop ? 14.0 : isTablet ? 12.0 : isSmallScreen ? 8.0 : 10.0;
+    
+    String? selectedTime;
+    final scrollController = FixedExtentScrollController(initialItem: initialIndex);
+    
+    await showModalBottomSheet(
       context: context,
-      initialTime: initialTime,
-      initialEntryMode: TimePickerEntryMode.input,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: primaryColor,
-              onPrimary: isDark ? AppColors.black : AppColors.white,
-              surface: colors.card,
-              onSurface: colors.textPrimary,
-            ),
-            timePickerTheme: TimePickerThemeData(
-              backgroundColor: colors.card,
-              hourMinuteTextColor: colors.textPrimary,
-              dayPeriodTextColor: colors.textPrimary,
-              dialHandColor: primaryColor,
-              dialBackgroundColor: primaryColor.withOpacity(0.1),
-            ),
-          ),
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              alwaysUse24HourFormat: false,
-            ),
-            child: child!,
-          ),
+      backgroundColor: colors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(isTablet ? 24 : 20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.all(isTablet ? 24 : 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.textTertiary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  SizedBox(height: isTablet ? 20 : 16),
+                  
+                  // Title
+                  Text(
+                    isStartTime ? 'Select Start Time' : 'Select End Time',
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: isTablet ? 20 : 16),
+                  
+                  // Time wheel picker
+                  SizedBox(
+                    height: wheelHeight,
+                    child: Stack(
+                      children: [
+                        // Center selection indicator
+                        Positioned(
+                          top: (wheelHeight - itemHeight) / 2,
+                          left: 0,
+                          right: 0,
+                          height: itemHeight,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: primaryColor.withOpacity(0.3)),
+                            ),
+                          ),
+                        ),
+                        // Wheel scroll view
+                        ListWheelScrollView.useDelegate(
+                          itemExtent: itemHeight,
+                          diameterRatio: 1.5,
+                          perspective: 0.003,
+                          physics: const FixedExtentScrollPhysics(),
+                          controller: scrollController,
+                          onSelectedItemChanged: (index) {
+                            setModalState(() {
+                              selectedTime = timeSlots[index];
+                            });
+                          },
+                          childDelegate: ListWheelChildBuilderDelegate(
+                            childCount: timeSlots.length,
+                            builder: (context, index) {
+                              final isSelected = index == scrollController.selectedItem;
+                              return Center(
+                                child: Text(
+                                  timeSlots[index],
+                                  style: TextStyle(
+                                    fontSize: isSelected ? itemFontSize + 2 : itemFontSize,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected ? primaryColor : colors.textSecondary,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: isTablet ? 24 : 20),
+                  
+                  // Confirm button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final finalTime = selectedTime ?? timeSlots[initialIndex];
+                        Navigator.pop(context, finalTime);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: isDark ? AppColors.black : AppColors.white,
+                        padding: EdgeInsets.symmetric(horizontal: buttonPaddingH, vertical: buttonPaddingV),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Confirm',
+                        style: TextStyle(fontSize: buttonFontSize, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: isSmallScreen ? 8 : 12),
+                ],
+              ),
+            );
+          },
         );
       },
-    );
-    
-    if (picked != null) {
-      final hour = picked.hourOfPeriod == 0 ? 12 : picked.hourOfPeriod;
-      final minute = picked.minute.toString().padLeft(2, '0');
-      final period = picked.period == DayPeriod.am ? 'AM' : 'PM';
-      final formattedTime = '$hour:$minute $period';
-      
-      setState(() {
-        if (isStartTime) {
-          _startTimeController.text = formattedTime;
-        } else {
-          _endTimeController.text = formattedTime;
-        }
-      });
-    }
+    ).then((result) {
+      if (result != null) {
+        setState(() {
+          if (isStartTime) {
+            _startTimeController.text = result;
+            // Reset end time if it's now invalid
+            if (_endTimeController.text.isNotEmpty) {
+              final validEndTimes = _getValidEndTimesForTimeSpending();
+              if (!validEndTimes.contains(_endTimeController.text)) {
+                _endTimeController.text = '';
+              }
+            }
+          } else {
+            _endTimeController.text = result;
+          }
+        });
+      }
+    });
   }
 
   Future<void> _checkSubscription() async {
@@ -917,8 +1034,8 @@ class _TimeSpendingScreenState extends State<TimeSpendingScreen> {
               return 'Please enter your hourly rate';
             }
             final rate = (double.tryParse(value.trim()) ?? 0).toInt();
-            if (rate < 50) {
-              return 'Hourly rate must be at least ₹50';
+            if (rate < 1) {
+              return 'Hourly rate must be at least ₹1';
             }
             return null;
           },

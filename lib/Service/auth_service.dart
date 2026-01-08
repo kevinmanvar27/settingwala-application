@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class AuthService {
   static Future<String?> _getToken() async {
@@ -19,31 +20,30 @@ class AuthService {
     await prefs.remove('auth_token');
   }
 
+  /// FIX: API Section 1.1 uses 'phone' not 'contact_number'
   static Future<AuthResponse> register({
     required String name,
     required String email,
     required String password,
     required String passwordConfirmation,
-    required String contactNumber,
+    required String phone,  // FIX: renamed from contactNumber to phone
     String? dateOfBirth,
     String? gender,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/register';
     try {
-      final url = '${ApiConstants.baseUrl}/auth/register';
       final body = {
         'name': name,
         'email': email,
         'password': password,
         'password_confirmation': passwordConfirmation,
-        'contact_number': contactNumber,
+        'phone': phone,  // FIX: API expects 'phone' not 'contact_number'
         if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
         if (gender != null) 'gender': gender,
       };
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -54,32 +54,34 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         if (responseData['data']?['token'] != null) {
           await _saveToken(responseData['data']['token']);
         }
         return AuthResponse.fromJson(responseData);
       } else if (response.statusCode == 422) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Validation error. Please check your input.',
           errors: responseData['errors'],
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Registration failed. Please try again.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -91,17 +93,15 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/login';
     try {
-      final url = '${ApiConstants.baseUrl}/auth/login';
       final body = {
         'email': email,
         'password': password,
       };
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'email': email, 'password': '***'});
 
       final response = await http.post(
         Uri.parse(url),
@@ -112,37 +112,41 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         if (responseData['data']?['token'] != null) {
           await _saveToken(responseData['data']['token']);
         }
         return AuthResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Invalid credentials');
         return AuthResponse(
           success: false,
           message: 'Invalid email or password.',
         );
       } else if (response.statusCode == 422) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Validation error.',
           errors: responseData['errors'],
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Login failed. Please try again.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -154,17 +158,15 @@ class AuthService {
     required String idToken,
     String? accessToken,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/google';
     try {
-      final url = '${ApiConstants.baseUrl}/auth/google';
       final body = {
         'id_token': idToken,
         if (accessToken != null) 'access_token': accessToken,
       };
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -175,26 +177,26 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         if (responseData['data']?['token'] != null) {
           await _saveToken(responseData['data']['token']);
         }
         return AuthResponse.fromJson(responseData);
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Google login failed.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -205,14 +207,12 @@ class AuthService {
   static Future<AuthResponse> forgotPassword({
     required String email,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/forgot-password';
     try {
-      final url = '${ApiConstants.baseUrl}/auth/forgot-password';
       final body = {'email': email};
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -223,28 +223,30 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return AuthResponse.fromJson(responseData);
       } else if (response.statusCode == 404) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Email not found');
         return AuthResponse(
           success: false,
           message: 'No account found with this email.',
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to send reset code.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -258,8 +260,8 @@ class AuthService {
     required String password,
     required String passwordConfirmation,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/reset-password';
     try {
-      final url = '${ApiConstants.baseUrl}/auth/reset-password';
       final body = {
         'email': email,
         'otp': otp,
@@ -267,10 +269,8 @@ class AuthService {
         'password_confirmation': passwordConfirmation,
       };
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'email': email, 'otp': otp});
 
       final response = await http.post(
         Uri.parse(url),
@@ -281,28 +281,30 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return AuthResponse.fromJson(responseData);
       } else if (response.statusCode == 400) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Invalid OTP');
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Invalid or expired OTP.',
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to reset password.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -314,17 +316,15 @@ class AuthService {
     required String email,
     required String otp,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/verify-otp';
     try {
-      final url = '${ApiConstants.baseUrl}/auth/verify-otp';
       final body = {
         'email': email,
         'otp': otp,
       };
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -335,28 +335,30 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return AuthResponse.fromJson(responseData);
       } else if (response.statusCode == 400) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Invalid OTP');
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Invalid or expired OTP.',
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'OTP verification failed.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -367,14 +369,12 @@ class AuthService {
   static Future<AuthResponse> resendOtp({
     required String email,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/resend-otp';
     try {
-      final url = '${ApiConstants.baseUrl}/auth/resend-otp';
       final body = {'email': email};
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -385,23 +385,23 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return AuthResponse.fromJson(responseData);
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to resend OTP.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -410,6 +410,7 @@ class AuthService {
   }
 
   static Future<AuthResponse> logout() async {
+    final url = '${ApiConstants.baseUrl}/auth/logout';
     try {
       final token = await _getToken();
 
@@ -418,11 +419,8 @@ class AuthService {
         return AuthResponse(success: true, message: 'Logged out successfully.');
       }
 
-      final url = '${ApiConstants.baseUrl}/auth/logout';
-
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -433,27 +431,28 @@ class AuthService {
         },
       );
 
-      
-      
-      
-      
-
       await _clearToken();
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return AuthResponse.fromJson(responseData);
       } else {
+        // API call નિષ્ફળ થઈ પણ logout થઈ ગયું
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return AuthResponse(success: true, message: 'Logged out successfully.');
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       await _clearToken();
       return AuthResponse(success: true, message: 'Logged out successfully.');
     }
   }
 
   static Future<AuthResponse> refreshToken() async {
+    final url = '${ApiConstants.baseUrl}/auth/refresh-token';
     try {
       final token = await _getToken();
 
@@ -464,11 +463,8 @@ class AuthService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/auth/refresh-token';
-
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -479,32 +475,34 @@ class AuthService {
         },
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         if (responseData['data']?['token'] != null) {
           await _saveToken(responseData['data']['token']);
         }
         return AuthResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
         await _clearToken();
         return AuthResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to refresh token.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -516,6 +514,7 @@ class AuthService {
     String? password,
     String? reason,
   }) async {
+    final url = '${ApiConstants.baseUrl}/auth/delete-account';
     try {
       final token = await _getToken();
 
@@ -526,16 +525,13 @@ class AuthService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/auth/delete-account';
       final body = {
         if (password != null) 'password': password,
         if (reason != null) 'reason': reason,
       };
 
-      
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -547,29 +543,31 @@ class AuthService {
         body: jsonEncode(body),
       );
 
-      
-      
-      
-      
-
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         await _clearToken();
         return AuthResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Invalid password');
         return AuthResponse(
           success: false,
           message: 'Invalid password.',
         );
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return AuthResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to delete account.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AuthResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -578,12 +576,10 @@ class AuthService {
   }
 
   static Future<AppSettingsResponse> getAppSettings() async {
+    final url = '${ApiConstants.baseUrl}/app-settings';
     try {
-      final url = '${ApiConstants.baseUrl}/app-settings';
-
-      
-      
-      
+      // API call થઈ રહી છે
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -593,22 +589,22 @@ class AuthService {
         },
       );
 
-      
-      
-      
-      
-
       if (response.statusCode == 200) {
+        // API call સફળ થઈ
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return AppSettingsResponse.fromJson(responseData);
       } else {
+        // API call નિષ્ફળ થઈ
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode);
         return AppSettingsResponse(
           success: false,
           message: 'Failed to get app settings.',
         );
       }
     } catch (e) {
-      
+      // Network error - API call નથી થઈ શકી
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return AppSettingsResponse(
         success: false,
         message: 'Network error. Please check your connection.',

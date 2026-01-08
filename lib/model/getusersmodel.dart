@@ -78,6 +78,7 @@ class User {
   String? firstGalleryImage;
   dynamic rating;
   dynamic reviewsCount;
+  dynamic serviceLocation;
 
   User({
     required this.id,
@@ -108,6 +109,7 @@ class User {
     this.firstGalleryImage,
     this.rating,
     this.reviewsCount,
+    this.serviceLocation,
   });
 
   static bool _parseBool(dynamic value, {bool defaultValue = false}) {
@@ -150,5 +152,6 @@ class User {
     firstGalleryImage: json["first_gallery_image"],
     rating: json["rating"],
     reviewsCount: json["reviews_count"],
+    serviceLocation: json["service_location"],
   );
 }

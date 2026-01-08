@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class ProviderBookingService {
   static Future<String?> _getToken() async {
@@ -14,6 +15,14 @@ class ProviderBookingService {
     int? perPage,
     String? status,
   }) async {
+    final queryParams = <String, String>{};
+    if (page != null) queryParams['page'] = page.toString();
+    if (perPage != null) queryParams['per_page'] = perPage.toString();
+    if (status != null) queryParams['status'] = status;
+
+    final uri = Uri.parse('${ApiConstants.baseUrl}/provider/bookings')
+        .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    final url = uri.toString();
     try {
       final token = await _getToken();
 
@@ -25,17 +34,11 @@ class ProviderBookingService {
         );
       }
 
-      final queryParams = <String, String>{};
-      if (page != null) queryParams['page'] = page.toString();
-      if (perPage != null) queryParams['per_page'] = perPage.toString();
-      if (status != null) queryParams['status'] = status;
+      
+      
+      
 
-      final uri = Uri.parse('${ApiConstants.baseUrl}/provider/bookings')
-          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
-
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         uri,
@@ -52,15 +55,18 @@ class ProviderBookingService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return ProviderBookingsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ProviderBookingsResponse(
           success: false,
           message: 'Session expired. Please login again.',
           data: [],
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to fetch bookings');
         return ProviderBookingsResponse(
           success: false,
           message: 'Failed to fetch bookings.',
@@ -68,6 +74,7 @@ class ProviderBookingService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return ProviderBookingsResponse(
         success: false,
@@ -81,6 +88,13 @@ class ProviderBookingService {
     int? page,
     int? perPage,
   }) async {
+    final queryParams = <String, String>{};
+    if (page != null) queryParams['page'] = page.toString();
+    if (perPage != null) queryParams['per_page'] = perPage.toString();
+
+    final uri = Uri.parse('${ApiConstants.baseUrl}/provider/booking-requests')
+        .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    final url = uri.toString();
     try {
       final token = await _getToken();
 
@@ -92,16 +106,11 @@ class ProviderBookingService {
         );
       }
 
-      final queryParams = <String, String>{};
-      if (page != null) queryParams['page'] = page.toString();
-      if (perPage != null) queryParams['per_page'] = perPage.toString();
+      
+      
+      
 
-      final uri = Uri.parse('${ApiConstants.baseUrl}/provider/booking-requests')
-          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
-
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         uri,
@@ -118,15 +127,18 @@ class ProviderBookingService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return ProviderBookingsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ProviderBookingsResponse(
           success: false,
           message: 'Session expired. Please login again.',
           data: [],
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to fetch booking requests');
         return ProviderBookingsResponse(
           success: false,
           message: 'Failed to fetch booking requests.',
@@ -134,6 +146,7 @@ class ProviderBookingService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return ProviderBookingsResponse(
         success: false,
@@ -144,6 +157,7 @@ class ProviderBookingService {
   }
 
   static Future<ProviderBookingActionResponse> acceptBooking(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/accept';
     try {
       final token = await _getToken();
 
@@ -154,12 +168,12 @@ class ProviderBookingService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/provider/booking/$bookingId/accept';
+      
+      
+      
+      
 
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -184,34 +198,41 @@ class ProviderBookingService {
       }
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return ProviderBookingActionResponse.fromJson(responseData ?? {'success': true, 'message': 'Booking accepted'});
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ProviderBookingActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 403, error: 'Not authorized to accept this booking');
         return ProviderBookingActionResponse(
           success: false,
           message: responseData?['message'] ?? 'You are not authorized to accept this booking.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Booking not found');
         return ProviderBookingActionResponse(
           success: false,
           message: responseData?['message'] ?? 'Booking not found.',
         );
       } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: 'Cannot accept this booking');
         return ProviderBookingActionResponse(
           success: false,
           message: responseData?['message'] ?? 'Cannot accept this booking. It may not be in pending status.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to accept booking');
         return ProviderBookingActionResponse(
           success: false,
           message: responseData?['message'] ?? 'Failed to accept booking. (Status: ${response.statusCode})',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return ProviderBookingActionResponse(
         success: false,
@@ -224,6 +245,7 @@ class ProviderBookingService {
       int bookingId, {
         String? reason,
       }) async {
+    final url = '${ApiConstants.baseUrl}/bookings/$bookingId/reject';
     try {
       final token = await _getToken();
 
@@ -234,7 +256,6 @@ class ProviderBookingService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/provider/booking/$bookingId/reject';
       final body = {
         if (reason != null) 'reason': reason,
       };
@@ -243,6 +264,8 @@ class ProviderBookingService {
       
       
       
+
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body.isNotEmpty ? body : null);
 
       final response = await http.post(
         Uri.parse(url),
@@ -262,19 +285,23 @@ class ProviderBookingService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return ProviderBookingActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ProviderBookingActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to reject booking');
         return ProviderBookingActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to reject booking.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return ProviderBookingActionResponse(
         success: false,
@@ -287,6 +314,7 @@ class ProviderBookingService {
       int bookingId, {
         String? reason,
       }) async {
+    final url = '${ApiConstants.baseUrl}/provider/booking/$bookingId/block';
     try {
       final token = await _getToken();
 
@@ -297,7 +325,6 @@ class ProviderBookingService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/provider/booking/$bookingId/block';
       final body = {
         if (reason != null) 'reason': reason,
       };
@@ -306,6 +333,8 @@ class ProviderBookingService {
       
       
       
+
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body.isNotEmpty ? body : null);
 
       final response = await http.post(
         Uri.parse(url),
@@ -325,19 +354,23 @@ class ProviderBookingService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return ProviderBookingActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ProviderBookingActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to block client');
         return ProviderBookingActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to block client.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return ProviderBookingActionResponse(
         success: false,
@@ -347,6 +380,7 @@ class ProviderBookingService {
   }
 
   static Future<ProviderBookingActionResponse> unblockClient(int userId) async {
+    final url = '${ApiConstants.baseUrl}/provider/user/$userId/unblock';
     try {
       final token = await _getToken();
 
@@ -357,11 +391,11 @@ class ProviderBookingService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/provider/user/$userId/unblock';
+      
+      
+      
 
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -380,19 +414,23 @@ class ProviderBookingService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return ProviderBookingActionResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return ProviderBookingActionResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to unblock client');
         return ProviderBookingActionResponse(
           success: false,
           message: responseData['message'] ?? 'Failed to unblock client.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return ProviderBookingActionResponse(
         success: false,

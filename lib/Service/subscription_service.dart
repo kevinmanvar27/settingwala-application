@@ -5,6 +5,7 @@ import '../model/getsubscriptionmodel.dart';
 import '../model/getpaymentstatusmodel.dart';
 import '../model/postpurchasemodel.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class SubscriptionService {
   Future<String?> _getToken() async {
@@ -15,7 +16,6 @@ class SubscriptionService {
   Future<Map<String, String>?> _getHeaders() async {
     final token = await _getToken();
     if (token == null) {
-      
       return null;
     }
     return {
@@ -25,35 +25,31 @@ class SubscriptionService {
     };
   }
 
+  /// Get subscription plans - API Section 2.1
+  /// URL: GET /subscription-plans (Public - No Auth Required)
   Future<GetsubscriptionModel?> getSubscriptionPlans() async {
+    final url = '${ApiConstants.baseUrl}/subscription-plans';
     try {
-      final headers = await _getHeaders();
-      if (headers == null) return null;
+      // Note: This endpoint doesn't require auth per API docs, but we'll include it if available
+      final headers = await _getHeaders() ?? {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
 
-      final url = '${ApiConstants.baseUrl}/subscription-plans';
-      
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(Uri.parse(url), headers: headers);
 
-      
-      
-
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
-        
         return GetsubscriptionModel.fromJson(data);
       } else {
-        
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get subscription plans');
         return null;
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
@@ -62,23 +58,17 @@ class SubscriptionService {
     required int planId,
     String paymentMethod = 'cashfree',
   }) async {
+    final url = '${ApiConstants.baseUrl}/subscription/purchase';
     try {
       final headers = await _getHeaders();
       if (headers == null) return null;
 
-      final url = '${ApiConstants.baseUrl}/subscription/purchase';
       final body = {
         'plan_id': planId,
         'payment_method': paymentMethod,
       };
 
-      
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -86,132 +76,80 @@ class SubscriptionService {
         body: jsonEncode(body),
       );
 
-      
-      
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
-        
-        
-        
-        
         return PostpurchaseModel.fromJson(data);
       } else {
-        
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to purchase subscription');
         return null;
       }
     } catch (e) {
-      
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
+
   Future<VerifyPaymentResponse?> verifyPayment({
-
     required int subscriptionId,
-
     required String orderId,
-
     required String cfOrderId,
-
     String? cfTransactionId,
-
   }) async {
-
+    final url = '${ApiConstants.baseUrl}/subscription/verify-payment';
     try {
-
       final headers = await _getHeaders();
-
       if (headers == null) return null;
-
-      final url = '${ApiConstants.baseUrl}/subscription/verify-payment';
 
       final body = {
-
         'subscription_id': subscriptionId,
-
         'order_id': orderId,
-
         'cf_order_id': cfOrderId,
-
         'cf_transaction_id': cfTransactionId,
-
       };
 
-      
-
-      
-
-      
-
-      
-
-      
-
-      
-
-      
-
-      
-
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
-
         Uri.parse(url),
-
         headers: headers,
-
         body: jsonEncode(body),
-
       );
 
-      
-
-      
-
       if (response.statusCode == 200 || response.statusCode == 201) {
-
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
-
-        
-
         return VerifyPaymentResponse.fromJson(data);
-
       } else {
-
-        
-
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Payment verification failed');
         return null;
-
       }
-
     } catch (e) {
-
-      
-
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
-
     }
-
   }
 
-
   Future<GetpaymentstatusModel?> getSubscriptionStatus() async {
+    final url = '${ApiConstants.baseUrl}/subscription/status';
     try {
       final headers = await _getHeaders();
       if (headers == null) return null;
 
-      final url = '${ApiConstants.baseUrl}/subscription/status';
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(Uri.parse(url), headers: headers);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final data = jsonDecode(response.body);
         return GetpaymentstatusModel.fromJson(data);
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get subscription status');
         return null;
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return null;
     }
   }
@@ -219,6 +157,7 @@ class SubscriptionService {
   /// Cancel the current active subscription
   /// Note: This cancels auto-renewal but keeps access until expiry date
   Future<CancelSubscriptionResponse> cancelSubscription() async {
+    final url = '${ApiConstants.baseUrl}/subscription/cancel';
     try {
       final headers = await _getHeaders();
       if (headers == null) {
@@ -228,7 +167,7 @@ class SubscriptionService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/subscription/cancel';
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -238,19 +177,23 @@ class SubscriptionService {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return CancelSubscriptionResponse.fromJson(data);
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: data['message'] ?? 'No active subscription found');
         return CancelSubscriptionResponse(
           success: false,
           message: data['message'] ?? 'No active subscription found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: data['message'] ?? 'Failed to cancel subscription');
         return CancelSubscriptionResponse(
           success: false,
           message: data['message'] ?? 'Failed to cancel subscription.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return CancelSubscriptionResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -263,6 +206,13 @@ class SubscriptionService {
     int page = 1,
     int perPage = 10,
   }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'per_page': perPage.toString(),
+    };
+    final url = Uri.parse('${ApiConstants.baseUrl}/subscription/history')
+        .replace(queryParameters: queryParams)
+        .toString();
     try {
       final headers = await _getHeaders();
       if (headers == null) {
@@ -272,27 +222,24 @@ class SubscriptionService {
         );
       }
 
-      final queryParams = {
-        'page': page.toString(),
-        'per_page': perPage.toString(),
-      };
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
-      final url = Uri.parse('${ApiConstants.baseUrl}/subscription/history')
-          .replace(queryParameters: queryParams);
-
-      final response = await http.get(url, headers: headers);
+      final response = await http.get(Uri.parse(url), headers: headers);
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return SubscriptionHistoryResponse.fromJson(data);
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: data['message'] ?? 'Failed to get subscription history');
         return SubscriptionHistoryResponse(
           success: false,
           message: data['message'] ?? 'Failed to get subscription history.',
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return SubscriptionHistoryResponse(
         success: false,
         message: 'Network error. Please check your connection.',
@@ -420,6 +367,7 @@ class SubscriptionHistoryItem {
   final String? startedAt;
   final String? expiresAt;
   final String? cancelledAt;
+  final String? transactionId;
 
   SubscriptionHistoryItem({
     required this.id,
@@ -428,7 +376,14 @@ class SubscriptionHistoryItem {
     this.startedAt,
     this.expiresAt,
     this.cancelledAt,
+    this.transactionId,
   });
+
+  // Convenience getters for UI
+  String? get planName => plan?.name;
+  double? get amount => plan?.amount;
+  String? get startDate => startedAt;
+  String? get endDate => expiresAt;
 
   factory SubscriptionHistoryItem.fromJson(Map<String, dynamic> json) {
     return SubscriptionHistoryItem(
@@ -440,6 +395,7 @@ class SubscriptionHistoryItem {
       startedAt: json['started_at'],
       expiresAt: json['expires_at'],
       cancelledAt: json['cancelled_at'],
+      transactionId: json['transaction_id'],
     );
   }
 }

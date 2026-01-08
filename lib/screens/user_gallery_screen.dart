@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/app_colors.dart';
 import 'package:settingwala/utils/api_constants.dart';
 
@@ -192,37 +193,28 @@ class _UserGalleryScreenState extends State<UserGalleryScreen> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(borderRadius),
-                              child: Image.network(
-                                _galleryImages[index],
+                              child: CachedImage(
+                                imageUrl: _galleryImages[index],
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: colors.card,
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.broken_image,
-                                        color: colors.textTertiary,
-                                        size: isTablet ? 40 : 32,
-                                      ),
+                                placeholder: Container(
+                                  color: colors.card,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: primaryColor,
                                     ),
-                                  );
-                                },
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    color: colors.card,
-                                    child: Center(
-                                      child: CircularProgressIndicator(
-                                        value: loadingProgress.expectedTotalBytes != null
-                                            ? loadingProgress.cumulativeBytesLoaded /
-                                                loadingProgress.expectedTotalBytes!
-                                            : null,
-                                        strokeWidth: 2,
-                                        color: primaryColor,
-                                      ),
+                                  ),
+                                ),
+                                errorWidget: Container(
+                                  color: colors.card,
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.broken_image,
+                                      color: colors.textTertiary,
+                                      size: isTablet ? 40 : 32,
                                     ),
-                                  );
-                                },
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -314,30 +306,21 @@ class _FullScreenGalleryState extends State<_FullScreenGallery> {
             minScale: 0.5,
             maxScale: 4.0,
             child: Center(
-              child: Image.network(
-                widget.images[index],
+              child: CachedImage(
+                imageUrl: widget.images[index],
                 fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(
-                    child: Icon(
-                      Icons.broken_image,
-                      color: Colors.white54,
-                      size: 64,
-                    ),
-                  );
-                },
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      color: widget.primaryColor,
-                    ),
-                  );
-                },
+                placeholder: Center(
+                  child: CircularProgressIndicator(
+                    color: widget.primaryColor,
+                  ),
+                ),
+                errorWidget: const Center(
+                  child: Icon(
+                    Icons.broken_image,
+                    color: Colors.white54,
+                    size: 64,
+                  ),
+                ),
               ),
             ),
           );

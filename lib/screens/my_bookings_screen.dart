@@ -3,12 +3,15 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import '../widgets/base_screen.dart';
+import '../widgets/cached_image.dart';
 import '../theme/theme.dart';
 import '../utils/responsive.dart';
 import '../utils/permission_helper.dart';
 import '../Service/booking_service.dart';
 import '../Service/user_service.dart';
 import '../Service/meeting_verification_service.dart';
+import '../Service/dispute_service.dart';
+import '../routes/app_routes.dart';
 import '../model/postbookingsmodel.dart';
 import '../model/getuseravailabilitymodel.dart';
 
@@ -78,6 +81,62 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
         
         
         _errorMessage = response?.message ?? 'Failed to load bookings';
+      }
+    });
+  }
+
+  /// Optimistically update local booking verification state
+  void _updateBookingVerificationLocally(int bookingId, {bool? hasStartPhoto, bool? hasEndPhoto, String? startPhotoUrl, String? endPhotoUrl}) {
+    setState(() {
+      final index = _bookings.indexWhere((b) => b.id == bookingId);
+      if (index != -1) {
+        final booking = _bookings[index];
+        final currentVerification = booking.verification;
+        
+        // Create updated verification
+        final updatedVerification = BookingVerification(
+          hasStartPhoto: hasStartPhoto ?? currentVerification?.hasStartPhoto ?? false,
+          hasEndPhoto: hasEndPhoto ?? currentVerification?.hasEndPhoto ?? false,
+          startTime: currentVerification?.startTime,
+          endTime: currentVerification?.endTime,
+          startPhotoUrl: startPhotoUrl ?? currentVerification?.startPhotoUrl,
+          endPhotoUrl: endPhotoUrl ?? currentVerification?.endPhotoUrl,
+        );
+        
+        // Create a new BookingData with updated verification
+        _bookings[index] = BookingData(
+          id: booking.id,
+          bookingDate: booking.bookingDate,
+          bookingDatetime: booking.bookingDatetime,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          durationHours: booking.durationHours,
+          actualDurationHours: booking.actualDurationHours,
+          hourlyRate: booking.hourlyRate,
+          baseAmount: booking.baseAmount,
+          platformFee: booking.platformFee,
+          totalAmount: booking.totalAmount,
+          commissionPercentage: booking.commissionPercentage,
+          commissionAmount: booking.commissionAmount,
+          providerAmount: booking.providerAmount,
+          status: booking.status,
+          providerStatus: booking.providerStatus,
+          paymentStatus: booking.paymentStatus,
+          paymentMethod: booking.paymentMethod,
+          walletAmountUsed: booking.walletAmountUsed,
+          cfAmountPaid: booking.cfAmountPaid,
+          paidAt: booking.paidAt,
+          role: booking.role,
+          otherUser: booking.otherUser,
+          providerServiceLocation: booking.providerServiceLocation,
+          meetingLocation: booking.meetingLocation,
+          notes: booking.notes,
+          cancelledAt: booking.cancelledAt,
+          cancellationReason: booking.cancellationReason,
+          verification: updatedVerification,
+          rating: booking.rating,
+          createdAt: booking.createdAt,
+        );
       }
     });
   }
@@ -490,6 +549,310 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
               const SizedBox(height: 12),
               _buildPostPhotoPrompt(booking, colors, primaryColor),
             ],
+
+            // Raise Dispute Button - Show for completed bookings or confirmed bookings where meeting time has passed
+            if (_shouldShowDisputeButton(booking)) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showRaiseDisputeDialog(booking, colors, primaryColor),
+                  icon: const Icon(Icons.gavel_outlined, size: 18),
+                  label: const Text('Raise Dispute'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Check if dispute button should be shown
+  bool _shouldShowDisputeButton(BookingData booking) {
+    final status = booking.status.toLowerCase();
+    
+    // Show for completed bookings
+    if (status == 'completed') return true;
+    
+    // Show for cancelled bookings (user might want to dispute cancellation)
+    if (status == 'cancelled') return true;
+    
+    // Show for confirmed bookings where meeting time has passed (no-show scenario)
+    if (status == 'confirmed' && booking.bookingDate != null) {
+      try {
+        final bookingDateTime = DateTime.parse(booking.bookingDate!);
+        final durationHoursStr = booking.durationHours ?? '1';
+        final durationHours = double.tryParse(durationHoursStr) ?? 1.0;
+        final meetingEndTime = bookingDateTime.add(Duration(hours: durationHours.toInt()));
+        
+        // If meeting end time has passed, show dispute button
+        if (DateTime.now().isAfter(meetingEndTime)) {
+          return true;
+        }
+      } catch (e) {
+        // If date parsing fails, don't show button
+      }
+    }
+    
+    return false;
+  }
+
+  /// Show raise dispute dialog
+  void _showRaiseDisputeDialog(BookingData booking, AppColorSet colors, Color primaryColor) {
+    String selectedReason = 'service_not_provided';
+    final descriptionController = TextEditingController();
+    bool isSubmitting = false;
+
+    final reasons = [
+      {'value': 'service_not_provided', 'label': 'Service Not Provided (No Show)'},
+      {'value': 'quality_issue', 'label': 'Quality Issue'},
+      {'value': 'payment_issue', 'label': 'Payment Issue'},
+      {'value': 'misconduct', 'label': 'Misconduct'},
+      {'value': 'other', 'label': 'Other'},
+    ];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: colors.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.gavel, color: Colors.red, size: 24),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Raise Dispute',
+                  style: TextStyle(color: colors.textPrimary, fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Booking info
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.background,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.receipt_long, size: 20, color: primaryColor),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Booking #${booking.id}',
+                              style: TextStyle(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            if (booking.bookingDate != null)
+                              Text(
+                                _formatDate(booking.bookingDate!),
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (booking.totalAmount != null)
+                        Text(
+                          '₹${booking.totalAmount}',
+                          style: TextStyle(
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Reason dropdown
+                Text(
+                  'Reason for Dispute *',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: colors.textSecondary.withOpacity(0.3)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedReason,
+                      isExpanded: true,
+                      dropdownColor: colors.card,
+                      style: TextStyle(color: colors.textPrimary),
+                      items: reasons.map((reason) {
+                        return DropdownMenuItem<String>(
+                          value: reason['value'],
+                          child: Text(
+                            reason['label']!,
+                            style: TextStyle(color: colors.textPrimary, fontSize: 14),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedReason = value);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Description
+                Text(
+                  'Description *',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 4,
+                  style: TextStyle(color: colors.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'Please describe your issue in detail...',
+                    hintStyle: TextStyle(color: colors.textSecondary),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colors.textSecondary.withOpacity(0.3)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colors.textSecondary.withOpacity(0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: primaryColor),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Minimum 20 characters required',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final description = descriptionController.text.trim();
+                      if (description.length < 20) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please provide at least 20 characters in description'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isSubmitting = true);
+
+                      try {
+                        final response = await DisputeService.raiseDispute(
+                          bookingId: booking.id,
+                          reason: selectedReason,
+                          description: description,
+                        );
+
+                        if (response.success) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(response.message.isNotEmpty
+                                  ? response.message
+                                  : 'Dispute raised successfully!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          // Navigate to disputes screen
+                          Navigator.pushNamed(context, AppRoutes.disputes);
+                        } else {
+                          setDialogState(() => isSubmitting = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(response.message),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSubmitting = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Submit Dispute'),
+            ),
           ],
         ),
       ),
@@ -568,6 +931,94 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
               ),
             ],
           ),
+          // Photo thumbnails row
+          if (verification.startPhotoUrl != null || verification.endPhotoUrl != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (verification.startPhotoUrl != null) ...[
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _showPhotoFullScreen(verification.startPhotoUrl!, 'Start Photo', colors),
+                      child: Column(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedImage(
+                              imageUrl: verification.startPhotoUrl!,
+                              height: 80,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              placeholder: Container(
+                                height: 80,
+                                color: colors.background,
+                                child: const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                              errorWidget: Container(
+                                height: 80,
+                                color: colors.background,
+                                child: Center(
+                                  child: Icon(Icons.broken_image, color: colors.textTertiary),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Start',
+                            style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                if (verification.startPhotoUrl != null && verification.endPhotoUrl != null)
+                  const SizedBox(width: 8),
+                if (verification.endPhotoUrl != null) ...[
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _showPhotoFullScreen(verification.endPhotoUrl!, 'End Photo', colors),
+                      child: Column(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedImage(
+                              imageUrl: verification.endPhotoUrl!,
+                              height: 80,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              placeholder: Container(
+                                height: 80,
+                                color: colors.background,
+                                child: const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                              errorWidget: Container(
+                                height: 80,
+                                color: colors.background,
+                                child: Center(
+                                  child: Icon(Icons.broken_image, color: colors.textTertiary),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'End',
+                            style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
           if (verification.startTime != null || verification.endTime != null) ...[
             const SizedBox(height: 8),
             Row(
@@ -594,6 +1045,87 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showPhotoFullScreen(String photoUrl, String title, AppColorSet colors) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colors.card,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.close, color: colors.textPrimary),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+              ),
+              decoration: BoxDecoration(
+                color: colors.card,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                child: CachedImage(
+                  imageUrl: photoUrl,
+                  fit: BoxFit.contain,
+                  placeholder: Container(
+                    height: 300,
+                    width: double.infinity,
+                    color: colors.background,
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                  errorWidget: Container(
+                    height: 200,
+                    width: double.infinity,
+                    color: colors.background,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.broken_image, size: 48, color: colors.textTertiary),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Failed to load image',
+                          style: TextStyle(color: colors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1000,6 +1532,10 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
                   );
 
                   if (response.success) {
+                    // Optimistically update local state to reflect photo upload with URL
+                    final photoUrl = response.data?.photoUrl;
+                    _updateBookingVerificationLocally(booking.id, hasStartPhoto: true, startPhotoUrl: photoUrl);
+                    // Also fetch from server to sync
                     _fetchBookings();
                   }
                 }
@@ -1249,6 +1785,10 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
                   );
 
                   if (response.success) {
+                    // Optimistically update local state to reflect photo upload with URL
+                    final photoUrl = response.data?.photoUrl;
+                    _updateBookingVerificationLocally(booking.id, hasStartPhoto: true, hasEndPhoto: true, endPhotoUrl: photoUrl);
+                    // Also fetch from server to sync
                     _fetchBookings();
                   }
                 }

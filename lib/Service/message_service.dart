@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_constants.dart';
+import '../utils/api_logger.dart';
 
 class MessageService {
   static Future<String?> _getToken() async {
@@ -10,6 +11,7 @@ class MessageService {
   }
 
   static Future<MessagesResponse?> getMessages(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/chat/booking/$bookingId/messages';
     try {
       final token = await _getToken();
 
@@ -18,8 +20,10 @@ class MessageService {
         return null;
       }
 
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/chat/booking/$bookingId/messages'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -33,16 +37,20 @@ class MessageService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         return _parseMessagesResponse(json);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         
         return null;
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get messages');
         
         return null;
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       if (e.toString().contains('FormatException')) {
         
@@ -52,6 +60,7 @@ class MessageService {
   }
 
   static Future<Message?> sendMessage(int bookingId, String messageText) async {
+    final url = '${ApiConstants.baseUrl}/chat/booking/$bookingId/send';
     try {
       final token = await _getToken();
 
@@ -60,16 +69,17 @@ class MessageService {
         return null;
       }
 
+      final body = {'message': messageText};
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
+
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/chat/booking/$bookingId/send'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'message': messageText,
-        }),
+        body: jsonEncode(body),
       );
 
       
@@ -78,22 +88,26 @@ class MessageService {
       
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final json = jsonDecode(response.body);
         if (json['success'] == true && json['data'] != null && json['data']['message'] != null) {
           return _parseMessage(json['data']['message']);
         }
         return null;
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to send message');
         
         return null;
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return null;
     }
   }
 
   static Future<bool> markAsRead(int bookingId) async {
+    final url = '${ApiConstants.baseUrl}/chat/booking/$bookingId/mark-read';
     try {
       final token = await _getToken();
 
@@ -102,8 +116,10 @@ class MessageService {
         return false;
       }
 
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
+
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/chat/booking/$bookingId/mark-read'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -116,14 +132,22 @@ class MessageService {
       
       
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        return true;
+      } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to mark as read');
+        return false;
+      }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return false;
     }
   }
 
   static Future<AllChatsResponse?> getAllChats({int page = 1}) async {
+    final url = '${ApiConstants.baseUrl}/chat?page=$page';
     try {
       final token = await _getToken();
 
@@ -135,15 +159,15 @@ class MessageService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/chat?page=$page';
+      
+      
+      
+      
+      
+      
+      
 
-      
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -158,14 +182,17 @@ class MessageService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return AllChatsResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return AllChatsResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get chats');
         final responseData = jsonDecode(response.body);
         return AllChatsResponse(
           success: false,
@@ -173,6 +200,7 @@ class MessageService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return AllChatsResponse(
         success: false,
@@ -182,6 +210,7 @@ class MessageService {
   }
 
   static Future<UnreadCountResponse?> getUnreadCount() async {
+    final url = '${ApiConstants.baseUrl}/chat/unread-count';
     try {
       final token = await _getToken();
 
@@ -193,14 +222,14 @@ class MessageService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/chat/unread-count';
+      
+      
+      
+      
+      
+      
 
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -215,14 +244,17 @@ class MessageService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return UnreadCountResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return UnreadCountResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get unread count');
         final responseData = jsonDecode(response.body);
         return UnreadCountResponse(
           success: false,
@@ -230,6 +262,7 @@ class MessageService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return UnreadCountResponse(
         success: false,
@@ -239,6 +272,7 @@ class MessageService {
   }
 
   static Future<BlockedUsersResponse?> getBlockedUsers() async {
+    final url = '${ApiConstants.baseUrl}/chat/blocked-users';
     try {
       final token = await _getToken();
 
@@ -250,14 +284,14 @@ class MessageService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/chat/blocked-users';
+      
+      
+      
+      
+      
+      
 
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'GET');
 
       final response = await http.get(
         Uri.parse(url),
@@ -272,14 +306,17 @@ class MessageService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BlockedUsersResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return BlockedUsersResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get blocked users');
         final responseData = jsonDecode(response.body);
         return BlockedUsersResponse(
           success: false,
@@ -287,6 +324,7 @@ class MessageService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return BlockedUsersResponse(
         success: false,
@@ -296,6 +334,7 @@ class MessageService {
   }
 
   static Future<StartChatResponse?> startChat(int userId) async {
+    final url = '${ApiConstants.baseUrl}/chat/start/$userId';
     try {
       final token = await _getToken();
 
@@ -307,15 +346,15 @@ class MessageService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/chat/start/$userId';
+      
+      
+      
+      
+      
+      
+      
 
-      
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'POST');
 
       final response = await http.post(
         Uri.parse(url),
@@ -330,24 +369,29 @@ class MessageService {
       
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return StartChatResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return StartChatResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 403, error: 'Cannot start chat with this user');
         return StartChatResponse(
           success: false,
           message: 'You cannot start a chat with this user.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
         return StartChatResponse(
           success: false,
           message: 'User not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to start chat');
         final responseData = jsonDecode(response.body);
         return StartChatResponse(
           success: false,
@@ -355,6 +399,7 @@ class MessageService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return StartChatResponse(
         success: false,
@@ -364,6 +409,7 @@ class MessageService {
   }
 
   static Future<DeleteMessageResponse?> deleteMessage(int messageId) async {
+    final url = '${ApiConstants.baseUrl}/chat/message/$messageId';
     try {
       final token = await _getToken();
 
@@ -375,15 +421,15 @@ class MessageService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/chat/message/$messageId';
+      
+      
+      
+      
+      
+      
+      
 
-      
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -398,24 +444,29 @@ class MessageService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return DeleteMessageResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return DeleteMessageResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 403) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 403, error: 'Can only delete own messages');
         return DeleteMessageResponse(
           success: false,
           message: 'You can only delete your own messages.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Message not found');
         return DeleteMessageResponse(
           success: false,
           message: 'Message not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to delete message');
         final responseData = jsonDecode(response.body);
         return DeleteMessageResponse(
           success: false,
@@ -423,6 +474,7 @@ class MessageService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return DeleteMessageResponse(
         success: false,
@@ -431,7 +483,8 @@ class MessageService {
     }
   }
 
-  static Future<BlockUserResponse?> blockUser(int userId) async {
+  static Future<BlockUserResponse?> blockUser(int userId, {String reason = ''}) async {
+    final url = '${ApiConstants.baseUrl}/chat/block/$userId';
     try {
       final token = await _getToken();
 
@@ -443,15 +496,8 @@ class MessageService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/chat/block/$userId';
-
-      
-      
-      
-      
-      
-      
-      
+      final body = {'reason': reason};
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: body);
 
       final response = await http.post(
         Uri.parse(url),
@@ -460,25 +506,30 @@ class MessageService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
+        body: jsonEncode(body),
       );
 
       
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BlockUserResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return BlockUserResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found');
         return BlockUserResponse(
           success: false,
           message: 'User not found.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to block user');
         final responseData = jsonDecode(response.body);
         return BlockUserResponse(
           success: false,
@@ -486,6 +537,7 @@ class MessageService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return BlockUserResponse(
         success: false,
@@ -495,6 +547,7 @@ class MessageService {
   }
 
   static Future<BlockUserResponse?> unblockUser(int userId) async {
+    final url = '${ApiConstants.baseUrl}/chat/block/$userId';
     try {
       final token = await _getToken();
 
@@ -506,15 +559,15 @@ class MessageService {
         );
       }
 
-      final url = '${ApiConstants.baseUrl}/chat/block/$userId';
+      
+      
+      
+      
+      
+      
+      
 
-      
-      
-      
-      
-      
-      
-      
+      ApiLogger.logApiCall(endpoint: url, method: 'DELETE');
 
       final response = await http.delete(
         Uri.parse(url),
@@ -529,19 +582,23 @@ class MessageService {
       
 
       if (response.statusCode == 200) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         final responseData = jsonDecode(response.body);
         return BlockUserResponse.fromJson(responseData);
       } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
         return BlockUserResponse(
           success: false,
           message: 'Session expired. Please login again.',
         );
       } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'User not found or not blocked');
         return BlockUserResponse(
           success: false,
           message: 'User not found or not blocked.',
         );
       } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to unblock user');
         final responseData = jsonDecode(response.body);
         return BlockUserResponse(
           success: false,
@@ -549,6 +606,7 @@ class MessageService {
         );
       }
     } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       
       return BlockUserResponse(
         success: false,
@@ -623,55 +681,8 @@ class MessageService {
     }
   }
 
-  /// Send typing status to server
-  /// Call this when user starts/stops typing
-  static Future<bool> sendTypingStatus(int bookingId, bool isTyping) async {
-    try {
-      final token = await _getToken();
-      if (token == null) return false;
-
-      final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/chat/booking/$bookingId/typing'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'is_typing': isTyping,
-        }),
-      );
-
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Get typing status of other user in chat
-  static Future<TypingStatusResponse?> getTypingStatus(int bookingId) async {
-    try {
-      final token = await _getToken();
-      if (token == null) return null;
-
-      final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/chat/booking/$bookingId/typing'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        return TypingStatusResponse.fromJson(json);
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
+  // REMOVED: sendTypingStatus() - Endpoint /chat/booking/{bookingId}/typing does NOT exist in API documentation.
+  // REMOVED: getTypingStatus() - Endpoint /chat/booking/{bookingId}/typing does NOT exist in API documentation.
 }
 
 class MessagesResponse {
@@ -963,23 +974,5 @@ class BlockUserResponse {
   }
 }
 
-/// Response for typing status API
-class TypingStatusResponse {
-  final bool success;
-  final bool isTyping;
-  final String? userName;
-
-  TypingStatusResponse({
-    required this.success,
-    required this.isTyping,
-    this.userName,
-  });
-
-  factory TypingStatusResponse.fromJson(Map<String, dynamic> json) {
-    return TypingStatusResponse(
-      success: json['success'] ?? false,
-      isTyping: json['data']?['is_typing'] ?? json['is_typing'] ?? false,
-      userName: json['data']?['user_name'] ?? json['user_name'],
-    );
-  }
-}
+// FIX: Removed TypingStatusResponse class - API endpoint /chat/booking/{bookingId}/typing
+// does not exist in API documentation (Section 11: Chat Routes)

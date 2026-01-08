@@ -3,10 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_colors.dart';
 import '../providers/chat_icon_provider.dart';
 import '../routes/app_routes.dart';
+import '../Service/notification_service.dart';
 import 'themed_logo.dart';
 
 
-class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
   final String title;
   final bool showBackButton;
@@ -22,9 +23,38 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showChatIcon,
   });
 
+  @override
+  State<CustomAppBar> createState() => _CustomAppBarState();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+
+class _CustomAppBarState extends State<CustomAppBar> {
+  int _unreadNotificationCount = 0;
+
   String? get _userPhotoUrl {
     final user = FirebaseAuth.instance.currentUser;
     return user?.photoURL;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final response = await NotificationService.getUnreadCount();
+      if (mounted && response != null && response.success) {
+        setState(() {
+          _unreadNotificationCount = response.unreadCount;
+        });
+      }
+    } catch (e) {
+      // Silent fail - badge is optional
+    }
   }
 
   @override
@@ -48,11 +78,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final chatNotifier = ChatIconProvider.maybeOf(context);
     
     // Determine chat icon visibility: use explicit value if provided, otherwise use provider
-    final shouldShowChatIcon = showChatIcon ?? (chatNotifier?.showChatIcon ?? false);
+    final shouldShowChatIcon = widget.showChatIcon ?? (chatNotifier?.showChatIcon ?? false);
 
     return AppBar(
-      automaticallyImplyLeading: showBackButton,
-      leading: showBackButton
+      automaticallyImplyLeading: widget.showBackButton,
+      leading: widget.showBackButton
           ? IconButton(
               icon: Icon(Icons.arrow_back, color: primaryColor, size: iconSize),
               onPressed: () => Navigator.of(context).pop(),
@@ -81,7 +111,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ),
-      actions: actions ?? [
+      actions: widget.actions ?? [
         // Only show chat icon if shouldShowChatIcon is true
         if (shouldShowChatIcon)
           IconButton(
@@ -91,12 +121,43 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               AppRoutes.navigateTo(context, AppRoutes.chatList);
             },
           ),
-        IconButton(
-          icon: Icon(Icons.notifications, color: primaryColor, size: iconSize),
-          onPressed: () {
-            // Use named route for notifications
-            AppRoutes.navigateTo(context, AppRoutes.notificationsList);
-          },
+        // Notification icon with unread count badge
+        Stack(
+          children: [
+            IconButton(
+              icon: Icon(Icons.notifications, color: primaryColor, size: iconSize),
+              onPressed: () async {
+                // Navigate to notifications and refresh count when returning
+                await AppRoutes.navigateTo(context, AppRoutes.notificationsList);
+                _loadUnreadCount();
+              },
+            ),
+            if (_unreadNotificationCount > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  child: Text(
+                    _unreadNotificationCount > 99 ? '99+' : _unreadNotificationCount.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
         ),
         IconButton(
           icon: _userPhotoUrl != null
@@ -120,14 +181,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
           onPressed: () {
-            scaffoldKey.currentState?.openEndDrawer();
+            widget.scaffoldKey.currentState?.openEndDrawer();
           },
         ),
         SizedBox(width: endPadding),
       ],
     );
   }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
