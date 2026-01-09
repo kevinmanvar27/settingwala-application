@@ -145,6 +145,14 @@ class _FindPersonPageState extends State<FindPersonPage> with SingleTickerProvid
     super.dispose();
   }
 
+  /// Safely converts a double to int, handling Infinity and NaN cases
+  int _safeToInt(double value) {
+    if (value.isNaN || value.isInfinite) {
+      return 0;
+    }
+    return value.toInt();
+  }
+
   @override
   Widget build(BuildContext context) {
     Responsive.init(context);
@@ -1057,7 +1065,7 @@ class _FindPersonPageState extends State<FindPersonPage> with SingleTickerProvid
                 borderRadius: BorderRadius.circular(badgeRadius),
               ),
               child: Text(
-                '₹${priceRange.start.toInt()} - ₹${priceRange.end.toInt()}',
+                '₹${_safeToInt(priceRange.start)} - ₹${_safeToInt(priceRange.end)}',
                 style: TextStyle(
                   fontSize: valueFontSize,
                   fontWeight: FontWeight.bold,

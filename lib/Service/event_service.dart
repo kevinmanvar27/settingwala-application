@@ -23,6 +23,7 @@ class EventModel {
   final bool isEventEnabled;
   final bool isJoined;
   final int participantsCount;
+  final int? eventPaymentId; // Added: Payment ID for fetching payment status
 
   EventModel({
     required this.id,
@@ -40,6 +41,7 @@ class EventModel {
     this.isEventEnabled = true,
     this.isJoined = false,
     this.participantsCount = 0,
+    this.eventPaymentId, // Added
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
@@ -65,6 +67,7 @@ class EventModel {
       isEventEnabled: json['is_event_enabled'] ?? true,
       isJoined: json['is_joined'] ?? false,
       participantsCount: json['participants_count'] ?? 0,
+      eventPaymentId: json['event_payment_id'], // Added: Parse event_payment_id from API
     );
   }
 
@@ -85,6 +88,7 @@ class EventModel {
       'is_event_enabled': isEventEnabled,
       'is_joined': isJoined,
       'participants_count': participantsCount,
+      'event_payment_id': eventPaymentId, // Added
     };
   }
 }
@@ -128,7 +132,6 @@ class EventService {
           'Authorization': 'Bearer $token',
         },
       );
-
 
 
       if (response.statusCode == 200) {
@@ -190,7 +193,6 @@ class EventService {
           'Authorization': 'Bearer $token',
         },
       );
-
 
 
       if (response.statusCode == 200) {

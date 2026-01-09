@@ -84,8 +84,9 @@ class CachedImage extends StatelessWidget {
         errorWidget: (context, url, error) => errorWidget ?? defaultErrorWidget,
         fadeInDuration: const Duration(milliseconds: 200),
         fadeOutDuration: const Duration(milliseconds: 200),
-        memCacheWidth: width != null ? (width! * 2).toInt() : null,
-        memCacheHeight: height != null ? (height! * 2).toInt() : null,
+        // Fix: Check for finite values before converting to int to avoid Infinity/NaN error
+        memCacheWidth: (width != null && width!.isFinite) ? (width! * 2).toInt() : null,
+        memCacheHeight: (height != null && height!.isFinite) ? (height! * 2).toInt() : null,
       ),
     );
   }

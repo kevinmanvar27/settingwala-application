@@ -433,160 +433,225 @@ class EventCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.card,
         borderRadius: BorderRadius.circular(cardRadius),
-        border: Border.all(color: primaryColor.withOpacity(0.3)),
+        border: Border.all(color: event.isJoined ? AppColors.success.withOpacity(0.5) : primaryColor.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.1),
+            color: event.isJoined ? AppColors.success.withOpacity(0.1) : primaryColor.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Container(
-            padding: EdgeInsets.all(cardPadding),
-            decoration: BoxDecoration(
-              color: colors.surfaceVariant,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(cardRadius - 1),
-                topRight: Radius.circular(cardRadius - 1),
+          // Tick mark badge for joined events (payment done)
+          if (event.isJoined)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: EdgeInsets.all(badgePaddingV),
+                decoration: BoxDecoration(
+                  color: AppColors.success,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.success.withOpacity(0.3),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: badgeIconSize,
+                ),
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(iconContainerPadding),
-                  decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _getEventIcon(),
-                    color: primaryColor,
-                    size: iconSize,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.all(cardPadding),
+                decoration: BoxDecoration(
+                  color: colors.surfaceVariant,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(cardRadius - 1),
+                    topRight: Radius.circular(cardRadius - 1),
                   ),
                 ),
-                SizedBox(width: iconSpacing),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event.title,
-                        style: TextStyle(
-                          fontSize: titleSize,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: titleDateSpacing),
-                      Text(
-                        _formatDate(),
-                        style: TextStyle(
-                          fontSize: dateSize,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: badgePaddingH, vertical: badgePaddingV),
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    borderRadius: BorderRadius.circular(badgeRadius),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: badgeIconSize,
-                      ),
-                      SizedBox(width: badgeIconSpacing),
-                      Text(
-                        '${event.participantsCount}',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: badgeTextSize,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          Padding(
-            padding: EdgeInsets.all(cardPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+                child: Row(
                   children: [
-                    Icon(
-                      Icons.location_on,
-                      size: locationIconSize,
-                      color: primaryColor,
+                    Container(
+                      padding: EdgeInsets.all(iconContainerPadding),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _getEventIcon(),
+                        color: primaryColor,
+                        size: iconSize,
+                      ),
                     ),
-                    SizedBox(width: locationIconSpacing),
+                    SizedBox(width: iconSpacing),
                     Expanded(
-                      child: Text(
-                        event.location ?? 'Location TBD',
-                        style: TextStyle(
-                          fontSize: locationSize,
-                          color: colors.textSecondary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event.title,
+                            style: TextStyle(
+                              fontSize: titleSize,
+                              fontWeight: FontWeight.bold,
+                              color: colors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: titleDateSpacing),
+                          Row(
+                            children: [
+                              Text(
+                                _formatDate(),
+                                style: TextStyle(
+                                  fontSize: dateSize,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                              if (event.isJoined) ...[
+                                SizedBox(width: 8),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: AppColors.success,
+                                        size: dateSize - 2,
+                                      ),
+                                      SizedBox(width: 3),
+                                      Text(
+                                        'Paid',
+                                        style: TextStyle(
+                                          fontSize: dateSize - 2,
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: badgePaddingH, vertical: badgePaddingV),
+                      decoration: BoxDecoration(
+                        color: primaryColor,
+                        borderRadius: BorderRadius.circular(badgeRadius),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: badgeIconSize,
+                          ),
+                          SizedBox(width: badgeIconSpacing),
+                          Text(
+                            '${event.participantsCount}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: badgeTextSize,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                
-                SizedBox(height: sectionSpacing),
-                
-                Text(
-                  event.description ?? 'No description available',
-                  style: TextStyle(
-                    fontSize: descriptionSize,
-                    color: colors.textPrimary,
-                  ),
-                  maxLines: isTablet || isDesktop ? 2 : 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                
-                SizedBox(height: buttonSpacing),
-                
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      AppRoutes.toEventDetails(context, event);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(buttonRadius),
+              ),
+              
+              Padding(
+                padding: EdgeInsets.all(cardPadding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on,
+                          size: locationIconSize,
+                          color: primaryColor,
+                        ),
+                        SizedBox(width: locationIconSpacing),
+                        Expanded(
+                          child: Text(
+                            event.location ?? 'Location TBD',
+                            style: TextStyle(
+                              fontSize: locationSize,
+                              color: colors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    SizedBox(height: sectionSpacing),
+                    
+                    Text(
+                      event.description ?? 'No description available',
+                      style: TextStyle(
+                        fontSize: descriptionSize,
+                        color: colors.textPrimary,
                       ),
-                      padding: EdgeInsets.symmetric(horizontal: buttonPaddingH, vertical: buttonPaddingV),
+                      maxLines: isTablet || isDesktop ? 2 : 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: Text(
-                      event.isJoined ? 'View Details' : 'Join Event',
-                      style: TextStyle(fontSize: buttonTextSize),
+                    
+                    SizedBox(height: buttonSpacing),
+                    
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          AppRoutes.toEventDetails(context, event);
+                        },
+                        icon: event.isJoined 
+                            ? Icon(Icons.visibility, size: buttonTextSize)
+                            : Icon(Icons.event_available, size: buttonTextSize),
+                        label: Text(
+                          event.isJoined ? 'View Details' : 'Join Event',
+                          style: TextStyle(fontSize: buttonTextSize),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: event.isJoined ? AppColors.success : primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(buttonRadius),
+                          ),
+                          padding: EdgeInsets.symmetric(horizontal: buttonPaddingH, vertical: buttonPaddingV),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

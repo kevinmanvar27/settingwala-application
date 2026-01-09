@@ -1,3 +1,6 @@
+import '../Service/booking_service.dart';
+
+
 double? _safeParseDouble(dynamic value) {
   if (value == null) return null;
   if (value is double) return value;
@@ -69,12 +72,18 @@ class BookingResponse {
 
 class BookingResponseData {
   final BookingData? booking;
+  final RefundInfo? refundInfo;
 
-  BookingResponseData({this.booking});
+  BookingResponseData({this.booking, this.refundInfo});
 
   factory BookingResponseData.fromJson(Map<String, dynamic> json) {
     return BookingResponseData(
       booking: json['booking'] != null ? BookingData.fromJson(json['booking']) : null,
+      refundInfo: json['refund_info'] != null 
+          ? RefundInfo.fromJson(json['refund_info']) 
+          : json['refund'] != null 
+              ? RefundInfo.fromJson(json['refund']) 
+              : null,
     );
   }
 }

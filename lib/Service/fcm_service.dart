@@ -4,10 +4,20 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:settingwala/utils/api_constants.dart';
 import '../utils/api_logger.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+/// Callback type for handling foreground FCM messages
+typedef FcmMessageCallback = void Function(RemoteMessage message);
 
 class FcmService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final String _fcmTokenKey = 'fcm_token';
+  
+  // Local notifications plugin for showing notifications when app is in foreground
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  
+  // Callback for when a new notification is received in foreground
+  FcmMessageCallback? onForegroundMessage;
 
   static final FcmService _instance = FcmService._internal();
   factory FcmService() => _instance;
@@ -20,6 +30,9 @@ class FcmService {
         badge: true,
         sound: true,
       );
+      
+      // Initialize local notifications for foreground display
+      await _initializeLocalNotifications();
 
       await _setupFCMToken();
 
@@ -39,6 +52,41 @@ class FcmService {
     } catch (e) {
       // Handle initialization errors silently
     }
+  }
+  
+  /// Initialize local notifications plugin
+  Future<void> _initializeLocalNotifications() async {
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+    
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+    
+    await _localNotifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        // Handle notification tap
+        // Could navigate to specific screen based on payload
+      },
+    );
+    
+    // Create notification channel for Android
+    const androidChannel = AndroidNotificationChannel(
+      'settingwala_notifications',
+      'Settingwala Notifications',
+      description: 'Notifications from Settingwala app',
+      importance: Importance.high,
+    );
+    
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(androidChannel);
   }
 
   Future<void> _setupFCMToken() async {
@@ -133,6 +181,54 @@ class FcmService {
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
+    // Log the incoming message
+    ApiLogger.logApiSuccess(
+      endpoint: 'FCM_FOREGROUND',
+      statusCode: 0,
+      response: 'Received foreground message: ${message.notification?.title}',
+    );
+    
+    // Show local notification so user sees it even when app is open
+    _showLocalNotification(message);
+    
+    // Notify any registered listeners (e.g., to update notification badge)
+    if (onForegroundMessage != null) {
+      onForegroundMessage!(message);
+    }
+  }
+  
+  /// Show a local notification when app is in foreground
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    final notification = message.notification;
+    if (notification == null) return;
+    
+    const androidDetails = AndroidNotificationDetails(
+      'settingwala_notifications',
+      'Settingwala Notifications',
+      channelDescription: 'Notifications from Settingwala app',
+      importance: Importance.high,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+    
+    await _localNotifications.show(
+      notification.hashCode,
+      notification.title,
+      notification.body,
+      notificationDetails,
+      payload: jsonEncode(message.data),
+    );
   }
 
   void _handleMessageTap(RemoteMessage message) {

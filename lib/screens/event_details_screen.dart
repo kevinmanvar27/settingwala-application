@@ -35,12 +35,22 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   // Cashfree payment data
   int? _eventPaymentId;
   EventPaymentOrderData? _paymentOrderData;
+  
+  // Payment status data
+  bool _isLoadingPaymentStatus = false;
+  EventPaymentVerifyData? _paymentStatusData;
 
   @override
   void initState() {
     super.initState();
     _isJoined = widget.event.isJoined;
+    _eventPaymentId = widget.event.eventPaymentId; // Initialize from event model
     _loadUserGender();
+    
+    // Fetch payment status if user has already joined and has payment ID
+    if (_isJoined && widget.event.eventPaymentId != null) {
+      _fetchPaymentStatus();
+    }
   }
 
   Future<void> _loadUserGender() async {
@@ -48,6 +58,28 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     setState(() {
       _userGender = prefs.getString('user_gender') ?? 'male';
     });
+  }
+
+  /// Fetch payment status from API
+  Future<void> _fetchPaymentStatus() async {
+    if (widget.event.eventPaymentId == null) return;
+    
+    setState(() => _isLoadingPaymentStatus = true);
+    
+    try {
+      final result = await EventService.getEventPaymentStatus(widget.event.eventPaymentId!);
+      if (mounted && result != null && result.data != null) {
+        setState(() {
+          _paymentStatusData = result.data;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching payment status: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPaymentStatus = false);
+      }
+    }
   }
 
   double _getPaymentAmount() {
@@ -438,7 +470,9 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                 ],
                 
                 if (_isJoined) ...[
-                  _buildJoinedIndicator(context, colors),
+                  _buildSectionTitle('Payment Status', colors, sectionTitleSize),
+                  SizedBox(height: titleSpacing),
+                  _buildPaymentStatusCard(context, colors, primaryColor, isDark),
                   SizedBox(height: sectionSpacing),
                 ],
               ],
@@ -466,12 +500,17 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     final badgePaddingV = isDesktop ? 8.0 : isTablet ? 7.0 : isSmallScreen ? 4.0 : 6.0;
     final badgeRadius = isDesktop ? 24.0 : isTablet ? 22.0 : isSmallScreen ? 16.0 : 20.0;
     final badgeTextSize = isDesktop ? 14.0 : isTablet ? 13.0 : isSmallScreen ? 10.0 : 12.0;
+    final badgeIconSize = isDesktop ? 18.0 : isTablet ? 16.0 : isSmallScreen ? 12.0 : 14.0;
     
     final titleSize = isDesktop ? 32.0 : isTablet ? 28.0 : isSmallScreen ? 18.0 : 24.0;
     final titleBadgeSpacing = isDesktop ? 16.0 : isTablet ? 14.0 : isSmallScreen ? 8.0 : 12.0;
     
+    // Tick mark size for top right corner
+    final tickMarkSize = isDesktop ? 48.0 : isTablet ? 44.0 : isSmallScreen ? 32.0 : 40.0;
+    final tickIconSize = isDesktop ? 28.0 : isTablet ? 26.0 : isSmallScreen ? 18.0 : 24.0;
+    
     String badgeText = _isFreeEvent() ? 'Free Event' : 'Premium Event';
-    if (_isJoined) badgeText = 'Joined';
+    if (_isJoined) badgeText = 'Payment Done';
     
     return Container(
       height: bannerHeight,
@@ -480,15 +519,14 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            primaryColor,
-            primaryColor.withOpacity(0.7),
-          ],
+          colors: _isJoined 
+              ? [AppColors.success, AppColors.success.withOpacity(0.7)]
+              : [primaryColor, primaryColor.withOpacity(0.7)],
         ),
         borderRadius: BorderRadius.circular(bannerRadius),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.3),
+            color: _isJoined ? AppColors.success.withOpacity(0.3) : primaryColor.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -500,11 +538,37 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             right: bgIconOffset,
             bottom: bgIconOffset,
             child: Icon(
-              Icons.event,
+              _isJoined ? Icons.check_circle : Icons.event,
               size: bgIconSize,
               color: (isDark ? AppColors.black : AppColors.white).withOpacity(0.1),
             ),
           ),
+          // Tick mark badge in top right corner when payment is done
+          if (_isJoined)
+            Positioned(
+              top: bannerPadding * 0.5,
+              right: bannerPadding * 0.5,
+              child: Container(
+                width: tickMarkSize,
+                height: tickMarkSize,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.check,
+                  color: AppColors.success,
+                  size: tickIconSize,
+                ),
+              ),
+            ),
           Padding(
             padding: EdgeInsets.all(bannerPadding),
             child: Column(
@@ -515,17 +579,30 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   padding: EdgeInsets.symmetric(horizontal: badgePaddingH, vertical: badgePaddingV),
                   decoration: BoxDecoration(
                     color: _isJoined 
-                        ? AppColors.success.withOpacity(0.9)
+                        ? Colors.white.withOpacity(0.9)
                         : (isDark ? AppColors.black : AppColors.white).withOpacity(0.2),
                     borderRadius: BorderRadius.circular(badgeRadius),
                   ),
-                  child: Text(
-                    badgeText,
-                    style: TextStyle(
-                      color: _isJoined ? Colors.white : (isDark ? AppColors.black : AppColors.white),
-                      fontSize: badgeTextSize,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isJoined) ...[
+                        Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                          size: badgeIconSize,
+                        ),
+                        SizedBox(width: 4),
+                      ] else ...[],
+                      Text(
+                        badgeText,
+                        style: TextStyle(
+                          color: _isJoined ? AppColors.success : (isDark ? AppColors.black : AppColors.white),
+                          fontSize: badgeTextSize,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 SizedBox(height: titleBadgeSpacing),
@@ -757,7 +834,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                           color: colors.textSecondary,
                         ),
                       ),
-                    ],
+                    ] else ...[],
                   ],
                 ),
               ),
@@ -808,175 +885,8 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     );
   }
 
-  void _showDistanceDialog(BuildContext context, AppColorSet colors, Color primaryColor, bool isDark) {
-    // Check if event has coordinates
-    if (widget.event.latitude == null || widget.event.longitude == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Event location coordinates not available', style: TextStyle(color: AppColors.white)),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-      return;
-    }
-    
-    // Show loading dialog while getting current location
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        content: Row(
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(width: 16),
-            Text('Calculating distance...', style: TextStyle(color: colors.textPrimary)),
-          ],
-        ),
-      ),
-    );
-    
-    // Calculate distance
-    _calculateDistance().then((distance) {
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading dialog
-        _showActualDistanceDialog(context, colors, primaryColor, isDark, distance);
-      }
-    }).catchError((error) {
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not calculate distance: ' + error.toString(), style: TextStyle(color: AppColors.white)),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
-    });
-  }
-  
-  Future<double> _calculateDistance() async {
-    final locationPermission = await LocationUtils.checkLocationPermission();
-    if (!locationPermission) {
-      throw 'Location permission denied';
-    }
 
-    final currentPosition = await LocationUtils.getCurrentLocation();
-    if (currentPosition == null) {
-      throw 'Could not get current location';
-    }
-    
-    if (widget.event.latitude == null || widget.event.longitude == null) {
-      throw 'Event location not available';
-    }
-    
-    final distance = LocationUtils.calculateDistance(
-      currentPosition.latitude,
-      currentPosition.longitude,
-      widget.event.latitude!,
-      widget.event.longitude!,
-    );
-    
-    return distance;
-  }
-  
-  void _showActualDistanceDialog(BuildContext context, AppColorSet colors, Color primaryColor, bool isDark, double distance) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 360;
-    final isTablet = screenWidth >= 600;
-    final isDesktop = screenWidth >= 1024;
-    
-    final dialogRadius = isDesktop ? 28.0 : isTablet ? 24.0 : isSmallScreen ? 14.0 : 20.0;
-    final titleIconSize = isDesktop ? 28.0 : isTablet ? 26.0 : isSmallScreen ? 20.0 : 24.0;
-    final titleTextSize = isDesktop ? 22.0 : isTablet ? 20.0 : isSmallScreen ? 16.0 : 18.0;
-    final titleIconSpacing = isDesktop ? 12.0 : isTablet ? 10.0 : isSmallScreen ? 6.0 : 8.0;
-    
-    final distanceCirclePadding = isDesktop ? 28.0 : isTablet ? 24.0 : isSmallScreen ? 14.0 : 20.0;
-    final distanceTextSize = isDesktop ? 40.0 : isTablet ? 36.0 : isSmallScreen ? 24.0 : 32.0;
-    final labelTextSize = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 13.0 : 16.0;
-    final infoTextSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;
-    final contentSpacing = isDesktop ? 12.0 : isTablet ? 10.0 : isSmallScreen ? 6.0 : 8.0;
-    final sectionSpacing = isDesktop ? 24.0 : isTablet ? 20.0 : isSmallScreen ? 12.0 : 16.0;
-    
-    final buttonRadius = isDesktop ? 24.0 : isTablet ? 22.0 : isSmallScreen ? 16.0 : 20.0;
-    final buttonTextSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 13.0 : 14.0;
-    
-    // Calculate estimated time (assuming average speed of 40 km/h)
-    final estimatedTime = (distance / 40.0 * 60).round();
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(dialogRadius),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.location_on, color: primaryColor, size: titleIconSize),
-            SizedBox(width: titleIconSpacing),
-            Text(
-              'Distance',
-              style: TextStyle(color: colors.textPrimary, fontSize: titleTextSize),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: EdgeInsets.all(distanceCirclePadding),
-              decoration: BoxDecoration(
-                color: primaryColor.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                distance < 1 ? ((distance * 1000).round().toString() + ' m') : (distance.toStringAsFixed(2) + ' km'),
-                style: TextStyle(
-                  fontSize: distanceTextSize,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                ),
-              ),
-            ),
-            SizedBox(height: contentSpacing),
-            Text(
-              distance < 1 ? 'meters away' : 'kilometers away',
-              style: TextStyle(
-                fontSize: labelTextSize,
-                color: colors.textSecondary,
-              ),
-            ),
-            SizedBox(height: sectionSpacing),
-            Text(
-              'Approximately ' + (estimatedTime > 0 ? estimatedTime.toString() : '1') + ' min by car',
-              style: TextStyle(
-                fontSize: infoTextSize,
-                color: primaryColor.withOpacity(0.8),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: isDark ? AppColors.black : AppColors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(buttonRadius),
-              ),
-            ),
-            child: Text('OK', style: TextStyle(fontSize: buttonTextSize)),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildDescriptionCard(BuildContext context, AppColorSet colors, Color primaryColor) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -1160,7 +1070,18 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     
     final sectionSpacing = isDesktop ? 24.0 : isTablet ? 20.0 : isSmallScreen ? 12.0 : 16.0;
     
+    // Price display sizes for boys/girls
+    final genderPriceSize = isDesktop ? 18.0 : isTablet ? 16.0 : isSmallScreen ? 12.0 : 14.0;
+    final genderLabelSize = isDesktop ? 14.0 : isTablet ? 13.0 : isSmallScreen ? 10.0 : 12.0;
+    final genderIconSize = isDesktop ? 22.0 : isTablet ? 20.0 : isSmallScreen ? 16.0 : 18.0;
+    
     final paymentAmount = _getPaymentAmount();
+    
+    // Check if we have different prices for boys and girls
+    final hasDifferentPrices = !widget.event.isCoupleEvent && 
+        widget.event.paymentAmountBoys != null && 
+        widget.event.paymentAmountGirls != null &&
+        widget.event.paymentAmountBoys != widget.event.paymentAmountGirls;
     
     return Container(
       padding: EdgeInsets.all(cardPadding),
@@ -1219,49 +1140,215 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             ],
           ),
           SizedBox(height: sectionSpacing),
-          Container(
-            padding: EdgeInsets.all(priceBoxPadding),
-            decoration: BoxDecoration(
-              color: primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(priceBoxRadius),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          
+          // Show separate prices for Boys and Girls if different
+          if (hasDifferentPrices) ...[
+            Row(
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Event Access Fee',
-                      style: TextStyle(
-                        fontSize: priceLabelSize,
-                        color: colors.textSecondary,
-                      ),
+                // Boys Price
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(priceBoxPadding * 0.75),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(priceBoxRadius),
+                      border: _userGender == 'male' 
+                          ? Border.all(color: Colors.blue, width: 2)
+                          : null,
                     ),
-                    SizedBox(height: textSpacing),
-                    Text(
-                      '₹${paymentAmount.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: priceValueSize,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
-                      ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.male, color: Colors.blue, size: genderIconSize),
+                            SizedBox(width: 4),
+                            Text(
+                              'Boys',
+                              style: TextStyle(
+                                fontSize: genderLabelSize,
+                                color: Colors.blue,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: textSpacing),
+                        Text(
+                          '₹${widget.event.paymentAmountBoys!.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: genderPriceSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        if (_userGender == 'male') ...[
+                          SizedBox(height: textSpacing),
+                          Text(
+                            'Your Price',
+                            style: TextStyle(
+                              fontSize: genderLabelSize - 2,
+                              color: Colors.blue.withOpacity(0.8),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-                Row(
-                  children: [
-                    Icon(Icons.credit_card, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
-                    SizedBox(width: paymentIconSpacing),
-                    Icon(Icons.account_balance, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
-                    SizedBox(width: paymentIconSpacing),
-                    Icon(Icons.qr_code, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
-                  ],
+                SizedBox(width: sectionSpacing * 0.5),
+                // Girls Price
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(priceBoxPadding * 0.75),
+                    decoration: BoxDecoration(
+                      color: Colors.pink.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(priceBoxRadius),
+                      border: _userGender == 'female' 
+                          ? Border.all(color: Colors.pink, width: 2)
+                          : null,
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.female, color: Colors.pink, size: genderIconSize),
+                            SizedBox(width: 4),
+                            Text(
+                              'Girls',
+                              style: TextStyle(
+                                fontSize: genderLabelSize,
+                                color: Colors.pink,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: textSpacing),
+                        Text(
+                          '₹${widget.event.paymentAmountGirls!.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: genderPriceSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.pink,
+                          ),
+                        ),
+                        if (_userGender == 'female') ...[
+                          SizedBox(height: textSpacing),
+                          Text(
+                            'Your Price',
+                            style: TextStyle(
+                              fontSize: genderLabelSize - 2,
+                              color: Colors.pink.withOpacity(0.8),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          SizedBox(height: sectionSpacing),
+            SizedBox(height: sectionSpacing),
+          ],
+          
+          // Show single price box (for couple events or same price)
+          if (!hasDifferentPrices)
+            Container(
+              padding: EdgeInsets.all(priceBoxPadding),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(priceBoxRadius),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Event Access Fee',
+                        style: TextStyle(
+                          fontSize: priceLabelSize,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      SizedBox(height: textSpacing),
+                      Text(
+                        '₹${paymentAmount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: priceValueSize,
+                          fontWeight: FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.credit_card, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
+                      SizedBox(width: paymentIconSpacing),
+                      Icon(Icons.account_balance, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
+                      SizedBox(width: paymentIconSpacing),
+                      Icon(Icons.qr_code, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          if (!hasDifferentPrices)
+            SizedBox(height: sectionSpacing),
+          
+          // Your payment amount summary when different prices
+          if (hasDifferentPrices)
+            Container(
+              padding: EdgeInsets.all(priceBoxPadding * 0.75),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(priceBoxRadius),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Payment',
+                        style: TextStyle(
+                          fontSize: priceLabelSize,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      SizedBox(height: textSpacing),
+                      Text(
+                        '₹${paymentAmount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: priceValueSize,
+                          fontWeight: FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.credit_card, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
+                      SizedBox(width: paymentIconSpacing),
+                      Icon(Icons.account_balance, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
+                      SizedBox(width: paymentIconSpacing),
+                      Icon(Icons.qr_code, color: primaryColor.withOpacity(0.6), size: paymentIconSize),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          if (hasDifferentPrices)
+            SizedBox(height: sectionSpacing),
+          
           SizedBox(
             width: double.infinity,
             height: buttonHeight,
@@ -1287,13 +1374,22 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         ),
                       ),
                     )
-                  : Text(
-                      _isJoined ? 'Already Joined' : 'Pay Now',
-                      style: TextStyle(
-                        fontSize: buttonTextSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isJoined) ...[
+                          Icon(Icons.check_circle, color: Colors.white, size: buttonTextSize + 4),
+                          SizedBox(width: 8),
+                        ],
+                        Text(
+                          _isJoined ? 'Payment Done' : 'Pay Now',
+                          style: TextStyle(
+                            fontSize: buttonTextSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ),
@@ -1347,7 +1443,8 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     );
   }
 
-  Widget _buildJoinedIndicator(BuildContext context, AppColorSet colors) {
+  /// Build Payment Status Card - Shows payment status from API
+  Widget _buildPaymentStatusCard(BuildContext context, AppColorSet colors, Color primaryColor, bool isDark) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
     final isTablet = screenWidth >= 600;
@@ -1355,39 +1452,218 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     
     final cardPadding = isDesktop ? 24.0 : isTablet ? 20.0 : isSmallScreen ? 12.0 : 16.0;
     final cardRadius = isDesktop ? 28.0 : isTablet ? 24.0 : isSmallScreen ? 14.0 : 20.0;
-    final iconSize = isDesktop ? 32.0 : isTablet ? 28.0 : isSmallScreen ? 20.0 : 24.0;
-    final textSize = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
+    final iconSize = isDesktop ? 48.0 : isTablet ? 44.0 : isSmallScreen ? 32.0 : 40.0;
+    final titleSize = isDesktop ? 20.0 : isTablet ? 18.0 : isSmallScreen ? 14.0 : 16.0;
+    final labelSize = isDesktop ? 14.0 : isTablet ? 13.0 : isSmallScreen ? 11.0 : 12.0;
+    final valueSize = isDesktop ? 16.0 : isTablet ? 15.0 : isSmallScreen ? 12.0 : 14.0;
     final spacing = isDesktop ? 16.0 : isTablet ? 14.0 : isSmallScreen ? 8.0 : 12.0;
+    final rowSpacing = isDesktop ? 12.0 : isTablet ? 10.0 : isSmallScreen ? 6.0 : 8.0;
+    
+    // Loading state
+    if (_isLoadingPaymentStatus) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(cardPadding),
+        decoration: BoxDecoration(
+          color: colors.card,
+          borderRadius: BorderRadius.circular(cardRadius),
+          border: Border.all(color: colors.border),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: primaryColor,
+                ),
+              ),
+              SizedBox(width: spacing),
+              Text(
+                'Loading payment status...',
+                style: TextStyle(
+                  fontSize: valueSize,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Determine status color and icon
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+    
+    if (_paymentStatusData != null) {
+      if (_paymentStatusData!.isCompleted) {
+        statusColor = AppColors.success;
+        statusIcon = Icons.check_circle;
+        statusText = 'COMPLETED';
+      } else if (_paymentStatusData!.isPending) {
+        statusColor = Colors.orange;
+        statusIcon = Icons.access_time;
+        statusText = 'PENDING';
+      } else if (_paymentStatusData!.isFailed) {
+        statusColor = AppColors.error;
+        statusIcon = Icons.cancel;
+        statusText = 'FAILED';
+      } else {
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
+        statusText = _paymentStatusData!.status.toUpperCase();
+      }
+    } else {
+      // No payment data - show as joined (free event or payment not required)
+      statusColor = AppColors.success;
+      statusIcon = Icons.check_circle;
+      statusText = 'REGISTERED';
+    }
     
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(cardPadding),
       decoration: BoxDecoration(
-        color: AppColors.success.withOpacity(0.1),
+        color: statusColor.withOpacity(0.08),
         borderRadius: BorderRadius.circular(cardRadius),
-        border: Border.all(color: AppColors.success.withOpacity(0.3)),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Column(
         children: [
-          Icon(
-            Icons.check_circle,
-            color: AppColors.success,
-            size: iconSize,
+          // Status Icon and Text
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                statusIcon,
+                color: statusColor,
+                size: iconSize,
+              ),
+              SizedBox(width: spacing),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                  Text(
+                    _paymentStatusData != null ? 'Payment Status' : 'Registration Status',
+                    style: TextStyle(
+                      fontSize: labelSize,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          SizedBox(width: spacing),
-          Text(
-            'You have joined this event!',
-            style: TextStyle(
-              fontSize: textSize,
-              fontWeight: FontWeight.w600,
-              color: AppColors.success,
+          
+          // Payment Details (if available)
+          if (_paymentStatusData != null) ...[
+            SizedBox(height: spacing * 1.5),
+            Divider(color: statusColor.withOpacity(0.2)),
+            SizedBox(height: spacing),
+            
+            // Amount Paid
+            if (_paymentStatusData!.amountPaid != null)
+              _buildPaymentStatusRow(
+                'Amount Paid',
+                '₹${_paymentStatusData!.amountPaid!.toStringAsFixed(0)}',
+                colors,
+                labelSize,
+                valueSize,
+                rowSpacing,
+              ),
+            
+            // Transaction ID
+            if (_paymentStatusData!.transactionId != null)
+              _buildPaymentStatusRow(
+                'Transaction ID',
+                _paymentStatusData!.transactionId!,
+                colors,
+                labelSize,
+                valueSize,
+                rowSpacing,
+              ),
+            
+            // Event Payment ID
+            if (_paymentStatusData!.eventPaymentId != null)
+              _buildPaymentStatusRow(
+                'Payment Reference',
+                '#${_paymentStatusData!.eventPaymentId}',
+                colors,
+                labelSize,
+                valueSize,
+                rowSpacing,
+              ),
+          ],
+          
+          // Refresh button
+          SizedBox(height: spacing),
+          TextButton.icon(
+            onPressed: _isLoadingPaymentStatus ? null : _fetchPaymentStatus,
+            icon: Icon(
+              Icons.refresh,
+              size: labelSize + 4,
+              color: primaryColor,
+            ),
+            label: Text(
+              'Refresh Status',
+              style: TextStyle(
+                fontSize: labelSize,
+                color: primaryColor,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+  
+  /// Helper widget for payment status row
+  Widget _buildPaymentStatusRow(
+    String label,
+    String value,
+    AppColorSet colors,
+    double labelSize,
+    double valueSize,
+    double spacing,
+  ) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: spacing),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: labelSize,
+              color: colors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: valueSize,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   void _showPaymentConfirmation(BuildContext context, AppColorSet colors, Color primaryColor, bool isDark, double amount) {
     final screenWidth = MediaQuery.of(context).size.width;

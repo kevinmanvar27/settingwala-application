@@ -129,7 +129,8 @@ class NotificationData {
 
   factory NotificationData.fromJson(Map<String, dynamic> json) {
     return NotificationData(
-      bookingId: json['booking_id'],
+      // Try 'booking_id' first, then fallback to 'id' (API might return either)
+      bookingId: json['booking_id'] ?? json['id'],
       clientId: json['client_id'],
       providerId: json['provider_id'],
       amount: json['amount']?.toString(),

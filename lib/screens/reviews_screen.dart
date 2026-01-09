@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/base_screen.dart';
 import '../theme/theme.dart';
 import '../Service/user_service.dart';
+import '../Service/auth_service.dart';
 
 class ReviewsScreen extends StatefulWidget {
   const ReviewsScreen({super.key});
@@ -31,22 +30,8 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
   }
   
   Future<void> _loadCurrentUserAndReviews() async {
-    // Get current user ID from SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString('user_data');
-    
-    if (userJson != null) {
-      try {
-        final userData = jsonDecode(userJson);
-        _currentUserId = userData['id'];
-      } catch (e) {
-        setState(() {
-          _errorMessage = 'Failed to load user data. Please login again.';
-          _isLoading = false;
-        });
-        return;
-      }
-    }
+    // FIX: Use cached AuthService method for faster loading
+    _currentUserId = await AuthService.getCurrentUserId();
     
     if (_currentUserId == null) {
       setState(() {

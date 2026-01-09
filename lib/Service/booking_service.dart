@@ -283,7 +283,10 @@ class BookingService {
 
       final body = <String, dynamic>{};
       if (bookingDate != null) {
-        body['booking_date'] = bookingDate.toIso8601String().split('T')[0];
+        // Format date as YYYY-MM-DD (ISO format)
+        String formattedDate = "${bookingDate.year}-${bookingDate.month.toString().padLeft(2, '0')}-${bookingDate.day.toString().padLeft(2, '0')}";
+        body['booking_date'] = formattedDate;
+        print('Formatted booking date: $formattedDate');
       }
       if (startTime != null) {
         body['start_time'] = startTime;
@@ -298,6 +301,12 @@ class BookingService {
       // API call થઈ રહી છે
       ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
+      // Log the exact request being sent
+      print('Sending update booking request:');
+      print('URL: $url');
+      print('Headers: ${{'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ${token.substring(0, 10)}...'}}');
+      print('Body: $body');
+      
       final response = await http.put(
         Uri.parse(url),
         headers: {
@@ -307,6 +316,11 @@ class BookingService {
         },
         body: jsonEncode(body),
       );
+      
+      // Log the response
+      print('Update booking response:');
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       final responseData = jsonDecode(response.body);
 
@@ -314,6 +328,15 @@ class BookingService {
         // API call સફળ થઈ
         ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
         return UpdateBookingResponse.fromJson(responseData);
+      } else if (response.statusCode == 422) {
+        // Validation error - log full response
+        print('API Validation Error - Full Response: ${response.body}');
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Validation failed: ${response.body}');
+        return UpdateBookingResponse(
+          success: false,
+          message: responseData['message'] ?? 'Validation failed',
+          validationErrors: responseData['errors'],
+        );
       } else if (response.statusCode == 401) {
         // API call નિષ્ફળ થઈ
         ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Session expired');
@@ -337,7 +360,7 @@ class BookingService {
           success: false,
           message: responseData['message'] ?? 'Cannot update booking in current status.',
         );
-      } else if (response.statusCode == 422) {
+      } else if (response.statusCode == 409) {
         ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message']);
         return UpdateBookingResponse(
           success: false,
@@ -505,7 +528,10 @@ class BookingService {
 
       final body = <String, dynamic>{};
       if (bookingDate != null) {
-        body['booking_date'] = bookingDate.toIso8601String().split('T')[0];
+        // Format date as YYYY-MM-DD (ISO format)
+        String formattedDate = "${bookingDate.year}-${bookingDate.month.toString().padLeft(2, '0')}-${bookingDate.day.toString().padLeft(2, '0')}";
+        body['booking_date'] = formattedDate;
+        print('Formatted booking date: $formattedDate');
       }
       if (startTime != null) {
         body['start_time'] = startTime;
@@ -520,6 +546,12 @@ class BookingService {
       // API call થઈ રહી છે
       ApiLogger.logApiCall(endpoint: url, method: 'PUT', body: body);
 
+      // Log the exact request being sent
+      print('Sending update booking request:');
+      print('URL: $url');
+      print('Headers: ${{'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ${token.substring(0, 10)}...'}}');
+      print('Body: $body');
+      
       final response = await http.put(
         Uri.parse(url),
         headers: {
@@ -529,6 +561,11 @@ class BookingService {
         },
         body: jsonEncode(body),
       );
+      
+      // Log the response
+      print('Update booking response:');
+      print('Status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         // API call सफल થઈ
@@ -2037,6 +2074,7 @@ class UpdateBookingResponse {
   final UpdateBookingData? data;
   final bool requiresPayment;
   final PaymentRequirement? paymentRequirement;
+  final Map<String, dynamic>? validationErrors;
 
   UpdateBookingResponse({
     required this.success,
@@ -2044,6 +2082,7 @@ class UpdateBookingResponse {
     this.data,
     this.requiresPayment = false,
     this.paymentRequirement,
+    this.validationErrors,
   });
 
   factory UpdateBookingResponse.fromJson(Map<String, dynamic> json) {
@@ -2055,6 +2094,7 @@ class UpdateBookingResponse {
       paymentRequirement: json['payment_requirement'] != null
           ? PaymentRequirement.fromJson(json['payment_requirement'])
           : null,
+      validationErrors: json['errors'] is Map ? json['errors'] : null,
     );
   }
 }

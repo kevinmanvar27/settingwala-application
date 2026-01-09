@@ -1487,11 +1487,13 @@ class _PersonProfileScreenState extends State<PersonProfileScreen> {
     bool isSubmitting = false;
 
     // Map display reasons to API reason values (snake_case as per API docs)
+    // FIX: Updated to match API's expected reportCategories values
     final reportReasons = {
-      'Inappropriate Behavior': 'inappropriate_behavior',
-      'Spam or Scam': 'spam_or_scam',
+      'Harassment': 'harassment',
       'Fake Profile': 'fake_profile',
-      'Harassment or Bullying': 'harassment',
+      'Inappropriate Content': 'inappropriate_content',
+      'Spam': 'spam',
+      'Scam': 'scam',
       'Other': 'other',
     };
 

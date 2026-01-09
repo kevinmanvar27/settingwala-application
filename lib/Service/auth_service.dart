@@ -5,19 +5,42 @@ import '../utils/api_constants.dart';
 import '../utils/api_logger.dart';
 
 class AuthService {
+  // Cache for SharedPreferences instance to avoid repeated async calls
+  static SharedPreferences? _prefsCache;
+  
+  static Future<SharedPreferences> _getPrefs() async {
+    _prefsCache ??= await SharedPreferences.getInstance();
+    return _prefsCache!;
+  }
+  
   static Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     return prefs.getString('auth_token');
   }
 
   static Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.setString('auth_token', token);
   }
 
   static Future<void> _clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.remove('auth_token');
+  }
+  
+  /// Get current user ID from cached user data
+  static Future<int?> getCurrentUserId() async {
+    final prefs = await _getPrefs();
+    final userJson = prefs.getString('user_data');
+    if (userJson != null) {
+      try {
+        final userData = jsonDecode(userJson);
+        return userData['id'];
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
   }
 
   /// FIX: API Section 1.1 uses 'phone' not 'contact_number'

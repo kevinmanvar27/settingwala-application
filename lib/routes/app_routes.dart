@@ -55,10 +55,18 @@ import '../screens/couple_activity_screen.dart';
 import '../screens/time_spending_screen.dart';
 import '../screens/sugar_partner_screen.dart';
 import '../screens/sugar_partner_exchanges_screen.dart';
+import '../screens/sugar_partner_history_screen.dart';
+import '../screens/sugar_partner_blocked_users_screen.dart';
 
 // Dispute & Rejection Screens
 import '../screens/disputes_screen.dart';
 import '../screens/rejections_screen.dart';
+
+// New Screens (APIs without UI)
+import '../screens/pending_reviews_screen.dart';
+import '../screens/provider_bookings_screen.dart';
+import '../screens/sugar_partner_payments_screen.dart';
+import '../screens/wallet_transactions_screen.dart';
 
 // Demo & Example Screens
 import '../screens/theme_demo_screen.dart';
@@ -66,6 +74,9 @@ import '../screens/example_screen.dart';
 import '../screens/slider_demo_screen.dart';
 import '../screens/location_map_screen.dart';
 import '../screens/location_demo_screen.dart';
+// Import for gallery check before Sugar Partner navigation
+import '../Service/gallery_service.dart';
+import '../utils/snackbar_utils.dart';
 
 
 // Seven Screens (Info pages)
@@ -141,10 +152,18 @@ class AppRoutes {
   static const String timeSpending = '/time-spending';
   static const String sugarPartner = '/sugar-partner';
   static const String sugarPartnerExchanges = '/sugar-partner-exchanges';
+  static const String sugarPartnerHistory = '/sugar-partner-history';
+  static const String sugarPartnerBlockedUsers = '/sugar-partner-blocked-users';
   
   // Disputes & Rejections
   static const String disputes = '/disputes';
   static const String rejections = '/rejections';
+  
+  // New Screens (APIs without UI)
+  static const String pendingReviews = '/pending-reviews';
+  static const String providerBookings = '/provider-bookings';
+  static const String sugarPartnerPayments = '/sugar-partner-payments';
+  static const String walletTransactions = '/wallet-transactions';
   
   // Demo & Examples
   static const String themeDemo = '/theme-demo';
@@ -192,9 +211,15 @@ class AppRoutes {
     timeSpending: (context) => const TimeSpendingScreen(),
     sugarPartner: (context) => const SugarPartnerScreen(),
     sugarPartnerExchanges: (context) => const SugarPartnerExchangesScreen(),
+    sugarPartnerHistory: (context) => const SugarPartnerHistoryScreen(),
+    sugarPartnerBlockedUsers: (context) => const SugarPartnerBlockedUsersScreen(),
     disputes: (context) => const DisputesScreen(),
     rejections: (context) => const RejectionsScreen(),
     reviews: (context) => const ReviewsScreen(),
+    pendingReviews: (context) => const PendingReviewsScreen(),
+    providerBookings: (context) => const ProviderBookingsScreen(),
+    sugarPartnerPayments: (context) => const SugarPartnerPaymentsScreen(),
+    walletTransactions: (context) => const WalletTransactionsScreen(),
     findPerson: (context) => const FindPersonScreen(),
     findPersonPage: (context) => const FindPersonPage(),
     themeDemo: (context) => const ThemeDemoScreen(),
@@ -285,6 +310,7 @@ class AppRoutes {
           ),
         );
       
+
 
       
       default:
@@ -418,5 +444,43 @@ class AppRoutes {
   /// Navigate to Login
   static void toLogin(BuildContext context) {
     navigateTo(context, login);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SUGAR PARTNER NAVIGATION WITH GALLERY CHECK
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Navigate to Sugar Partner screen with gallery photo check
+  /// If user has no photos in gallery, redirects to Gallery screen first
+  static Future<void> toSugarPartnerWithGalleryCheck(BuildContext context) async {
+    try {
+      // Fetch user's gallery
+      final galleryResult = await GalleryService.getGallery();
+      
+      // Check if gallery has at least one photo
+      final hasPhotos = galleryResult?.data?.gallery?.isNotEmpty ?? false;
+      
+      if (hasPhotos) {
+        // User has photos, navigate to Sugar Partner
+        navigateTo(context, sugarPartner);
+      } else {
+        // No photos, show warning and redirect to Gallery
+        SnackbarUtils.showWarning(
+          context,
+          'Sugar Partner માટે ઓછામાં ઓછો એક ફોટો જરૂરી છે। કૃપા કરીને પહેલા ગેલેરીમાં ફોટો ઉમેરો।',
+          duration: const Duration(seconds: 4),
+        );
+        
+        // Navigate to Gallery screen
+        navigateTo(context, gallery);
+      }
+    } catch (e) {
+      // On error, show warning and navigate to gallery
+      SnackbarUtils.showWarning(
+        context,
+        'ગેલેરી ચેક કરવામાં સમસ્યા આવી। કૃપા કરીને ફરી પ્રયાસ કરો।',
+      );
+      navigateTo(context, gallery);
+    }
   }
 }

@@ -8,7 +8,17 @@ import '../Service/provider_booking_service.dart';
 import '../Service/booking_service.dart';
 import '../model/GetnotificatonsModel.dart';
 import '../model/booking_payment_model.dart';
-import '../providers/chat_icon_provider.dart';
+
+import '../providers/notification_provider.dart';
+// Cashfree SDK imports
+import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cftheme/cftheme.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfdropcheckoutpayment.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpaymentcomponents/cfpaymentcomponent.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
+import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
+import 'package:flutter_cashfree_pg_sdk/utils/cfexceptions.dart';
 
 class NotificationsListScreen extends StatefulWidget {
   const NotificationsListScreen({super.key});
@@ -32,6 +42,32 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     super.initState();
     _loadNotifications();
     _scrollController.addListener(_onScroll);
+    
+    // Auto-mark all notifications as read when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoMarkAllAsRead();
+    });
+  }
+  
+  /// Automatically mark all notifications as read when screen opens
+  /// This updates both the backend and the app bar badge
+  Future<void> _autoMarkAllAsRead() async {
+    try {
+      final response = await NotificationService.markAllAsRead();
+      if (response != null && response.success && mounted) {
+        // Update local state
+        setState(() {
+          for (var notification in _notifications) {
+            notification.readAt = DateTime.now();
+          }
+        });
+        // Update app bar badge via provider
+        context.notificationNotifier.clearCount();
+      }
+    } catch (e) {
+      // Silent fail - not critical if auto-mark fails
+      debugPrint('Auto mark all as read failed: $e');
+    }
   }
 
   @override
@@ -118,6 +154,9 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           }
           _isMarkingAllRead = false;
         });
+        
+        // Update app bar badge via provider
+        context.notificationNotifier.clearCount();
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -207,6 +246,9 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           _isClearingAll = false;
         });
         
+        // Update app bar badge via provider
+        context.notificationNotifier.clearCount();
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('All notifications cleared'),
@@ -254,6 +296,8 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         setState(() {
           notification.readAt = DateTime.now();
         });
+        // Update app bar badge via provider
+        context.notificationNotifier.decrementCount();
       }
     } catch (e) {
       // Silent fail for individual mark as read
@@ -709,22 +753,26 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                                 color: colors.textTertiary,
                               ),
                             ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: notificationColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                notification.type.replaceAll('_', ' ').toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: timeFontSize - 1,
-                                  color: notificationColor,
-                                  fontWeight: FontWeight.w500,
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: notificationColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  notification.type.replaceAll('_', ' ').toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: timeFontSize - 1,
+                                    color: notificationColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
                               ),
                             ),
@@ -887,22 +935,21 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                   ),
                 ),
                 SizedBox(height: padding * 0.75),
-                // Action Buttons Row - Cancel and Update (for booking_confirmed)
+                // Action Buttons Row - Cancel and Update
                 Row(
                   children: [
-                    // Cancel Booking Button - Only show for confirmed bookings
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _onCancelBooking(notification),
-                        icon: Icon(Icons.cancel_outlined, size: iconSize * 0.7),
+                        icon: Icon(Icons.cancel_outlined, size: iconSize * 0.8),
                         label: Text(
                           'Cancel',
-                          style: TextStyle(fontSize: messageFontSize * 0.9),
+                          style: TextStyle(fontSize: messageFontSize),
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.error,
                           side: BorderSide(color: AppColors.error),
-                          padding: EdgeInsets.symmetric(vertical: padding * 0.5),
+                          padding: EdgeInsets.symmetric(vertical: padding * 0.6),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -910,19 +957,18 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                       ),
                     ),
                     SizedBox(width: padding * 0.5),
-                    // Update Booking Button - Only show for confirmed bookings
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: ElevatedButton.icon(
                         onPressed: () => _onUpdateBooking(notification),
-                        icon: Icon(Icons.edit_outlined, size: iconSize * 0.7),
+                        icon: Icon(Icons.edit_calendar, size: iconSize * 0.8),
                         label: Text(
                           'Update',
-                          style: TextStyle(fontSize: messageFontSize * 0.9),
+                          style: TextStyle(fontSize: messageFontSize),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: primaryColor,
-                          side: BorderSide(color: primaryColor),
-                          padding: EdgeInsets.symmetric(vertical: padding * 0.5),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: isDark ? AppColors.black : AppColors.white,
+                          padding: EdgeInsets.symmetric(vertical: padding * 0.6),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -933,10 +979,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                 ),
               ],
 
-              // booking_accepted: Show Start Meeting button
-              if (isBookingAccepted && !isBookingConfirmed) ...[
+              // Show Start Meeting button for accepted bookings (provider accepted)
+              if (isBookingAccepted) ...[
                 const SizedBox(height: 12),
-                // Booking Details Card for Accepted Booking
+                // Booking Details Card for Accepted Bookings
                 Container(
                   padding: EdgeInsets.all(padding * 0.75),
                   decoration: BoxDecoration(
@@ -1242,11 +1288,14 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   List<String> _generateTimeSlots() {
     final slots = <String>[];
     for (int hour = 6; hour <= 23; hour++) {
-      slots.add('${hour.toString().padLeft(2, '0')}:00');
+      // Ensure 2-digit hour format (06:00 instead of 6:00)
+      final hourString = hour.toString().padLeft(2, '0');
+      slots.add('$hourString:00');
       if (hour < 23) {
-        slots.add('${hour.toString().padLeft(2, '0')}:30');
+        slots.add('$hourString:30');
       }
     }
+    print('Generated ${slots.length} time slots: $slots');
     return slots;
   }
 
@@ -1280,17 +1329,86 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     
     final allTimeSlots = _generateTimeSlots();
     
-    String? selectedStartTime = bookingData.startTime;
-    String? selectedEndTime = bookingData.endTime;
-    
-    if (selectedStartTime != null && !allTimeSlots.contains(selectedStartTime)) {
-      selectedStartTime = null;
+    // Normalize time format from HH:mm:ss to HH:mm (API returns with seconds)
+    String? normalizeTime(String? time) {
+      if (time == null) return null;
+      
+      // If time has seconds (HH:mm:ss), remove them
+      if (time.length == 8 && time.contains(':')) {
+        return time.substring(0, 5); // "09:00:00" -> "09:00"
+      }
+      
+      // If time is in single-digit hour format (9:00), convert to double-digit (09:00)
+      if (time.length == 4 && time.contains(':')) {
+        return "0$time"; // "9:00" -> "09:00"
+      }
+      
+      // If time is in AM/PM format, convert to 24-hour
+      if (time.toLowerCase().contains('am') || time.toLowerCase().contains('pm')) {
+        final parts = time.toLowerCase().split(':');
+        if (parts.length >= 2) {
+          int hour = int.tryParse(parts[0]) ?? 0;
+          String minutePart = parts[1];
+          String minutes = "00";
+          
+          // Extract minutes from "30pm" or "30 pm"
+          final minuteMatch = RegExp(r'(\d+)').firstMatch(minutePart);
+          if (minuteMatch != null) {
+            minutes = minuteMatch.group(1)!.padLeft(2, '0');
+          }
+          
+          // Handle PM conversion
+          if (minutePart.contains('pm') && hour < 12) {
+            hour += 12;
+          }
+          // Handle 12 AM special case
+          if (minutePart.contains('am') && hour == 12) {
+            hour = 0;
+          }
+          
+          return "${hour.toString().padLeft(2, '0')}:$minutes";
+        }
+      }
+      
+      return time;
     }
-    if (selectedEndTime != null && !allTimeSlots.contains(selectedEndTime)) {
+    
+    // Get original times from booking data
+    String? originalStartTime = normalizeTime(bookingData.startTime);
+    String? originalEndTime = normalizeTime(bookingData.endTime);
+    
+    // Debug log
+    print('Original times from API - Start: $originalStartTime, End: $originalEndTime');
+    print('Available time slots: $allTimeSlots');
+    
+    // Initialize with original values if they exist in our time slots
+    String? selectedStartTime = originalStartTime;
+    String? selectedEndTime = originalEndTime;
+    
+    // Validate that times exist in our available slots
+    if (selectedStartTime != null && !allTimeSlots.contains(selectedStartTime)) {
+      print('Start time $selectedStartTime not found in available slots');
+      selectedStartTime = allTimeSlots.isNotEmpty ? allTimeSlots.first : null;
+    }
+    
+    // Only set end time if start time is valid
+    if (selectedStartTime != null) {
+      List<String> validEndTimes = _getValidEndTimes(selectedStartTime, allTimeSlots);
+      if (selectedEndTime != null && !validEndTimes.contains(selectedEndTime)) {
+        print('End time $selectedEndTime not found in valid end times');
+        selectedEndTime = validEndTimes.isNotEmpty ? validEndTimes.first : null;
+      }
+    } else {
       selectedEndTime = null;
     }
 
     print('📝 Showing update dialog for booking ID: ${notification.data?.bookingId}, Date: ${selectedDate}, StartTime: ${selectedStartTime}, EndTime: ${selectedEndTime}');
+    
+    // Debug all time slots
+    print('All time slots: $allTimeSlots');
+    if (selectedStartTime != null) {
+      print('Valid end times: ${_getValidEndTimes(selectedStartTime, allTimeSlots)}');
+    }
     
     showDialog(
       context: context,
@@ -1392,15 +1510,25 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                                 hint: Text('Select', style: TextStyle(color: colors.textTertiary)),
                                 items: allTimeSlots.map((time) => DropdownMenuItem(
                                   value: time,
-                                  child: Text(_formatTimeForDisplay(time), style: TextStyle(color: colors.textPrimary)),
+                                  child: Row(
+                                    children: [
+                                      Text(_formatTimeForDisplay(time), style: TextStyle(color: colors.textPrimary)),
+                                      const SizedBox(width: 4),
+                                      Text('($time)', style: TextStyle(color: colors.textTertiary, fontSize: 12)),
+                                    ],
+                                  ),
                                 )).toList(),
+                                icon: Icon(Icons.arrow_drop_down, color: primaryColor),
                                 onChanged: (value) {
+                                  print('Start time changed to: $value');
                                   setDialogState(() {
                                     selectedStartTime = value;
                                     if (selectedEndTime != null && value != null) {
                                       final validEndTimes = _getValidEndTimes(value, allTimeSlots);
+                                      print('Valid end times after start time change: $validEndTimes');
                                       if (!validEndTimes.contains(selectedEndTime)) {
-                                        selectedEndTime = null;
+                                        print('Current end time $selectedEndTime is no longer valid, resetting');
+                                        selectedEndTime = validEndTimes.isNotEmpty ? validEndTimes.first : null;
                                       }
                                     }
                                   });
@@ -1432,9 +1560,17 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                                 hint: Text('Select', style: TextStyle(color: colors.textTertiary)),
                                 items: _getValidEndTimes(selectedStartTime, allTimeSlots).map((time) => DropdownMenuItem(
                                   value: time,
-                                  child: Text(_formatTimeForDisplay(time), style: TextStyle(color: colors.textPrimary)),
+                                  child: Row(
+                                    children: [
+                                      Text(_formatTimeForDisplay(time), style: TextStyle(color: colors.textPrimary)),
+                                      const SizedBox(width: 4),
+                                      Text('($time)', style: TextStyle(color: colors.textTertiary, fontSize: 12)),
+                                    ],
+                                  ),
                                 )).toList(),
+                                icon: Icon(Icons.arrow_drop_down, color: primaryColor),
                                 onChanged: selectedStartTime == null ? null : (value) {
+                                  print('End time changed to: $value');
                                   setDialogState(() => selectedEndTime = value);
                                 },
                               ),
@@ -1447,16 +1583,19 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                Text('Notes (optional)', style: TextStyle(color: colors.textSecondary, fontWeight: FontWeight.w500)),
+                Text('Notes (Optional)', style: TextStyle(color: colors.textSecondary, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: notesController,
-                  style: TextStyle(color: colors.textPrimary),
                   maxLines: 3,
+                  style: TextStyle(color: colors.textPrimary),
                   decoration: InputDecoration(
-                    hintText: 'Add any notes...',
+                    hintText: 'Add any notes for the provider...',
                     hintStyle: TextStyle(color: colors.textTertiary),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colors.textTertiary.withOpacity(0.3)),
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: colors.textTertiary.withOpacity(0.3)),
@@ -1476,15 +1615,212 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
               child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
             ),
             ElevatedButton(
-              onPressed: (selectedStartTime == null || selectedEndTime == null) ? null : () {
-                Navigator.pop(dialogContext);
-                if (bookingData.bookingId != null) {
-                  _updateBooking(
-                    bookingData.bookingId!,
+              onPressed: () async {
+                if (selectedStartTime == null || selectedEndTime == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Please select both start and end time'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                  return;
+                }
+
+                // Close the update dialog first
+                if (Navigator.canPop(dialogContext)) {
+                  Navigator.pop(dialogContext);
+                }
+                
+                // Show loading dialog with a key for easier management
+                final loadingDialogKey = GlobalKey<State>();
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => AlertDialog(
+                    key: loadingDialogKey,
+                    backgroundColor: Colors.white,
+                    content: Row(
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(width: 20),
+                        Text('Updating booking...', style: TextStyle(color: colors.textPrimary)),
+                      ],
+                    ),
+                  ),
+                );
+
+                try {
+                  // Debug log before API call
+                  print('Calling updateBookingWithPayment - ID: ${bookingData.bookingId}, Date: ${selectedDate}, Start: ${selectedStartTime}, End: ${selectedEndTime}');
+                  print('Formatted date for API: ${selectedDate.toIso8601String().split('T')[0]}');
+                  
+                  if (selectedStartTime == null || selectedEndTime == null) {
+                    if (mounted) {
+                    // Find the most recent dialog and close it
+                    Navigator.of(context, rootNavigator: true).pop();
+                  }
+                    throw Exception('Start time or end time is null');
+                  }
+                  
+                  // Make sure time format is correct (HH:MM format)
+                  String ensureCorrectTimeFormat(String time) {
+                    // If time is already in correct format (HH:MM), return it
+                    if (time.length == 5 && time.contains(':')) {
+                      return time;
+                    }
+                    // If time has seconds (HH:MM:SS), remove them
+                    if (time.length == 8 && time.contains(':')) {
+                      return time.substring(0, 5);
+                    }
+                    // If time is in single-digit hour format (9:00), convert to double-digit (09:00)
+                    if (time.length == 4 && time.contains(':')) {
+                      return "0$time"; // "9:00" -> "09:00"
+                    }
+                    // If time is in AM/PM format, convert to 24-hour
+                    if (time.toLowerCase().contains('am') || time.toLowerCase().contains('pm')) {
+                      final parts = time.toLowerCase().split(':');
+                      if (parts.length >= 2) {
+                        int hour = int.tryParse(parts[0]) ?? 0;
+                        String minutePart = parts[1];
+                        String minutes = "00";
+                        
+                        // Extract minutes from "30pm" or "30 pm"
+                        final minuteMatch = RegExp(r'(\d+)').firstMatch(minutePart);
+                        if (minuteMatch != null) {
+                          minutes = minuteMatch.group(1)!.padLeft(2, '0');
+                        }
+                        
+                        // Handle PM conversion
+                        if (minutePart.contains('pm') && hour < 12) {
+                          hour += 12;
+                        }
+                        // Handle 12 AM special case
+                        if (minutePart.contains('am') && hour == 12) {
+                          hour = 0;
+                        }
+                        
+                        return "${hour.toString().padLeft(2, '0')}:$minutes";
+                      }
+                    }
+                    // Default case, return as is
+                    return time;
+                  }
+                  
+                  // Format date as YYYY-MM-DD for API
+                  String formattedDate = "${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}";
+                  print('Manually formatted date: $formattedDate');
+                  
+                  // Try to update booking - API will return if payment is required
+                  final updateResponse = await BookingService.updateBookingWithPayment(
+                    bookingData.bookingId ?? 0,
                     bookingDate: selectedDate,
-                    startTime: selectedStartTime,
-                    endTime: selectedEndTime,
-                    notes: notesController.text.isNotEmpty ? notesController.text : null,
+                    startTime: ensureCorrectTimeFormat(selectedStartTime!),
+                    endTime: ensureCorrectTimeFormat(selectedEndTime!),
+                    notes: notesController.text,
+                  );
+
+                  // Debug log after API call
+                  print('API Response: ${updateResponse.success}, Message: ${updateResponse.message}, Requires Payment: ${updateResponse.requiresPayment}');
+                  if (updateResponse.validationErrors != null) {
+                    print('Validation errors: ${updateResponse.validationErrors}');
+                  }
+                  
+                  // Safely close the loading dialog
+                  if (mounted) {
+                    // Find the most recent dialog and close it
+                    Navigator.of(context, rootNavigator: true).pop();
+                  }
+
+                  if (updateResponse.requiresPayment && updateResponse.paymentRequirement != null) {
+                    // Show payment dialog
+                    _showPaymentDialog(
+                      bookingId: bookingData.bookingId ?? 0,
+                      paymentRequirement: updateResponse.paymentRequirement!,
+                      updateData: updateResponse.data,
+                      bookingDate: selectedDate,
+                      startTime: selectedStartTime,
+                      endTime: selectedEndTime,
+                      notes: notesController.text,
+                    );
+                  } else if (updateResponse.success) {
+                    // Update successful without additional payment
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                            const SizedBox(width: 8),
+                            const Expanded(child: Text('Booking updated successfully!')),
+                          ],
+                        ),
+                        backgroundColor: AppColors.success,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    );
+                    _loadNotifications();
+                  } else {
+                    // Show detailed error message
+                    String errorMessage = updateResponse.message;
+                    
+                    // Handle validation errors better
+                    if (errorMessage.contains('Validation failed')) {
+                      if (updateResponse.validationErrors != null) {
+                        // Extract specific validation error messages
+                        final errors = updateResponse.validationErrors!;
+                        print('Validation errors: $errors');
+                        
+                        if (errors['booking_date'] != null) {
+                          errorMessage = errors['booking_date'][0];
+                        } else if (errors['start_time'] != null) {
+                          errorMessage = errors['start_time'][0];
+                        } else if (errors['end_time'] != null) {
+                          errorMessage = errors['end_time'][0];
+                        } else {
+                          // Generic validation error
+                          errorMessage = 'Booking update failed. Please check if the selected time slot is available.';
+                        }
+                      } else {
+                        errorMessage = 'Booking update failed. Please check if the selected time slot is available.';
+                      }
+                    }
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(errorMessage),
+                        backgroundColor: AppColors.error,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  print('Error updating booking: $e');
+                  // Safely close the loading dialog
+                  if (mounted) {
+                    // Find the most recent dialog and close it
+                    Navigator.of(context, rootNavigator: true).pop();
+                  }
+                  
+                  // Show user-friendly error message
+                  String errorMessage = 'Failed to update booking';
+                  if (e.toString().contains('time is null')) {
+                    errorMessage = 'Please select both start and end time';
+                  } else if (e.toString().contains('No host specified in URI')) {
+                    errorMessage = 'Network connection error. Please check your internet connection.';
+                  }
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(errorMessage),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      duration: const Duration(seconds: 4),
+                    ),
                   );
                 }
               },
@@ -1492,7 +1828,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                 backgroundColor: primaryColor,
                 foregroundColor: isDark ? AppColors.black : AppColors.white,
               ),
-              child: const Text('Update'),
+              child: const Text('Update Booking'),
             ),
           ],
         ),
@@ -1500,119 +1836,362 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     );
   }
 
-  Future<void> _updateBooking(
-      int bookingId, {
-        DateTime? bookingDate,
-        String? startTime,
-        String? endTime,
-        String? notes,
-      }) async {
-    // Update booking functionality for confirmed bookings
-    print('🔄 API Update Booking called for ID: $bookingId, Date: $bookingDate, Start: $startTime, End: $endTime');
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+
+  void _onCancelBooking(NotificationItem notification) {
+    // Handle cancel booking functionality
+    print('Cancel Booking: ${notification.data?.bookingId}');
+    final colors = context.colors;
 
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => const Center(
-        child: CircularProgressIndicator(),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.cancel, color: AppColors.error),
+            const SizedBox(width: 8),
+            Text('Cancel Booking', style: TextStyle(color: colors.textPrimary)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to cancel this booking? This action cannot be undone.',
+          style: TextStyle(color: colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('No, Keep It', style: TextStyle(color: colors.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              
+              // Show loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(child: CircularProgressIndicator()),
+              );
+              
+              try {
+                final response = await BookingService.cancelBooking(notification.data?.bookingId ?? 0);
+                
+                if (mounted) {
+          // Find the most recent dialog and close it
+          Navigator.of(context, rootNavigator: true).pop();
+        } // Close loading
+                
+                if (response != null && response.success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Booking cancelled successfully'),
+                      backgroundColor: AppColors.success,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                  // Refresh notifications
+                  _loadNotifications();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(response?.message ?? 'Failed to cancel booking'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+          // Find the most recent dialog and close it
+          Navigator.of(context, rootNavigator: true).pop();
+        } // Close loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
       ),
     );
+  }
 
+  void _onStartMeeting(NotificationItem notification) {
+    // Handle start meeting functionality for accepted bookings
+    print('Start Meeting: ${notification.data?.bookingId}');
+    // TODO: Implement meeting start logic (e.g., navigate to video call screen)
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Starting meeting...'),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _onAcceptBooking(NotificationItem notification) async {
+    // Handle accept booking functionality
+    print('Accept Booking: ${notification.data?.bookingId}');
+    
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
     try {
-      // Use new updateBookingWithPayment method that handles payment differences
-      final response = await BookingService.updateBookingWithPayment(
-        bookingId,
-        bookingDate: bookingDate,
-        startTime: startTime,
-        endTime: endTime,
-        notes: notes,
-      );
-
-      if (mounted) Navigator.pop(context);
-
-      // Check if payment is required (duration increased)
-      if (response.requiresPayment && response.paymentRequirement != null) {
-        // Show payment dialog
-        _showPaymentRequirementDialog(
-          bookingId: bookingId,
-          paymentRequirement: response.paymentRequirement!,
-          bookingDate: bookingDate,
-          startTime: startTime,
-          endTime: endTime,
-          notes: notes,
-        );
-        return;
-      }
-
-      // Check if refund was processed (duration decreased)
-      if (response.success && response.data?.refundInfo != null) {
-        final refundInfo = response.data!.refundInfo!;
-        scaffoldMessenger.showSnackBar(
+      final response = await ProviderBookingService.acceptBooking(notification.data?.bookingId ?? 0);
+      
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      
+      if (response != null && response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Booking updated! ₹${refundInfo.amount.toStringAsFixed(2)} refunded to your wallet',
-                  ),
-                ),
-              ],
-            ),
+            content: const Text('Booking accepted successfully'),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            duration: const Duration(seconds: 4),
           ),
         );
-        if (mounted) _loadNotifications();
-        return;
-      }
-
-      // Normal success/failure handling
-      String messageToShow;
-      if (response.message.isNotEmpty) {
-        messageToShow = response.message;
-      } else if (response.success) {
-        messageToShow = 'Booking updated successfully';
-      } else {
-        messageToShow = 'Failed to update booking';
-      }
-
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text(messageToShow),
-          backgroundColor: response.success ? AppColors.success : AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-
-      if (response.success && mounted) {
+        // Refresh notifications
         _loadNotifications();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response?.message ?? 'Failed to accept booking'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
-
-      scaffoldMessenger.showSnackBar(
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 3),
         ),
       );
     }
   }
 
-  /// Show payment requirement dialog when booking update requires extra payment
-  void _showPaymentRequirementDialog({
+  void _onRejectBooking(NotificationItem notification) async {
+    // Handle reject booking functionality
+    print('Reject Booking: ${notification.data?.bookingId}');
+    
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      final response = await ProviderBookingService.rejectBooking(notification.data?.bookingId ?? 0);
+      
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      
+      if (response != null && response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Booking rejected'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        // Refresh notifications
+        _loadNotifications();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response?.message ?? 'Failed to reject booking'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  void _onBlockUser(NotificationItem notification) async {
+    // Handle block user functionality
+    print('Block User for Booking: ${notification.data?.bookingId}');
+    
+    final colors = context.colors;
+    
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.block, color: AppColors.error),
+            const SizedBox(width: 8),
+            Text('Block User', style: TextStyle(color: colors.textPrimary)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to block this user? They will not be able to send you booking requests anymore.',
+          style: TextStyle(color: colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      final response = await ProviderBookingService.blockClient(notification.data?.bookingId ?? 0);
+      
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      
+      if (response != null && response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('User blocked successfully'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        // Refresh notifications
+        _loadNotifications();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response?.message ?? 'Failed to block user'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  void _handleNotificationTap(NotificationItem notification) {
+    // Mark as read when tapped
+    _markNotificationAsRead(notification);
+    
+    // Handle navigation based on notification type
+    final type = notification.type.toLowerCase();
+    
+    switch (type) {
+      case 'booking':
+      case 'booking_request':
+      case 'booking_confirmed':
+      case 'booking_cancelled':
+      case 'booking_accepted':
+        // Navigate to booking details or my bookings screen
+        // Navigator.pushNamed(context, '/my-bookings');
+        break;
+      case 'payment':
+      case 'payment_received':
+      case 'payment_pending':
+        // Navigate to payment history
+        // Navigator.pushNamed(context, '/payment-history');
+        break;
+      case 'message':
+      case 'chat':
+        // Navigate to chat
+        // Navigator.pushNamed(context, '/chat');
+        break;
+      default:
+        // Just mark as read, no navigation
+        break;
+    }
+  }
+
+  void _refreshNotifications() {
+    _loadNotifications();
+  }
+
+  /// Show payment dialog for booking update with price difference
+  void _showPaymentDialog({
     required int bookingId,
     required PaymentRequirement paymentRequirement,
+    UpdateBookingData? updateData,
     DateTime? bookingDate,
     String? startTime,
     String? endTime,
@@ -1622,9 +2201,12 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
 
+    // Get amounts from updateData if available, otherwise use totalDue
+    final originalAmount = updateData?.oldTotalAmount ?? 0.0;
+    final newAmount = updateData?.newTotalAmount ?? (originalAmount + paymentRequirement.totalDue);
+
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1632,12 +2214,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           children: [
             Icon(Icons.payment, color: primaryColor),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Additional Payment Required',
-                style: TextStyle(color: colors.textPrimary, fontSize: 18),
-              ),
-            ),
+            Text('Additional Payment Required', style: TextStyle(color: colors.textPrimary, fontSize: 18)),
           ],
         ),
         content: Column(
@@ -1645,43 +2222,28 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Extending booking time requires additional payment.',
+              'The updated booking requires additional payment:',
               style: TextStyle(color: colors.textSecondary),
             ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  _buildPaymentRow('Extra Amount Due', '₹${paymentRequirement.totalDue.toStringAsFixed(2)}', colors, isBold: true),
-                  const Divider(height: 16),
-                  _buildPaymentRow('Your Wallet Balance', '₹${paymentRequirement.walletBalance.toStringAsFixed(2)}', colors),
-                  if (paymentRequirement.walletAmountToUse > 0) ...[
-                    const SizedBox(height: 8),
-                    _buildPaymentRow('From Wallet', '-₹${paymentRequirement.walletAmountToUse.toStringAsFixed(2)}', colors, color: AppColors.success),
-                  ],
-                  if (paymentRequirement.cashfreeAmountDue > 0) ...[
-                    const SizedBox(height: 8),
-                    _buildPaymentRow('Pay via Cashfree', '₹${paymentRequirement.cashfreeAmountDue.toStringAsFixed(2)}', colors, color: AppColors.warning),
-                  ],
-                ],
-              ),
-            ),
+            _buildPaymentRow('Original Amount', '₹${originalAmount.toStringAsFixed(2)}', colors),
+            _buildPaymentRow('New Amount', '₹${newAmount.toStringAsFixed(2)}', colors),
+            const Divider(),
+            _buildPaymentRow('Difference', '₹${paymentRequirement.totalDue.toStringAsFixed(2)}', colors, isBold: true, color: AppColors.error),
             const SizedBox(height: 12),
-            if (paymentRequirement.canPayFromWallet)
-              Text(
-                '✓ Full amount can be paid from wallet',
-                style: TextStyle(color: AppColors.success, fontSize: 12),
-              )
-            else
-              Text(
-                '⚠ Insufficient wallet balance. Remaining amount will be charged via Cashfree.',
-                style: TextStyle(color: AppColors.warning, fontSize: 12),
-              ),
+            if (paymentRequirement.walletBalance > 0) ...[
+              _buildPaymentRow('Wallet Balance', '₹${paymentRequirement.walletBalance.toStringAsFixed(2)}', colors, color: AppColors.success),
+              if (paymentRequirement.canPayFromWallet)
+                Text(
+                  '✓ Full amount can be paid from wallet',
+                  style: TextStyle(color: AppColors.success, fontSize: 12),
+                )
+              else
+                Text(
+                  '⚠ Insufficient wallet balance. Remaining amount will be charged via Cashfree.',
+                  style: TextStyle(color: AppColors.warning, fontSize: 12),
+                ),
+            ],
           ],
         ),
         actions: [
@@ -1745,11 +2307,21 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   }) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
+    // Show loading dialog with a key for easier management
+    final loadingDialogKey = GlobalKey<State>();
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => const Center(
-        child: CircularProgressIndicator(),
+      builder: (dialogContext) => AlertDialog(
+        key: loadingDialogKey,
+        backgroundColor: Theme.of(context).cardColor,
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Text('Processing payment...', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+          ],
+        ),
       ),
     );
 
@@ -1762,7 +2334,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           paymentMethod: 'wallet',
         );
 
-        if (mounted) Navigator.pop(context);
+        if (mounted) {
+          // Find the most recent dialog and close it
+          Navigator.of(context, rootNavigator: true).pop();
+        }
 
         if (response != null && response.success) {
           scaffoldMessenger.showSnackBar(
@@ -1772,7 +2347,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                   const Icon(Icons.check_circle, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('Booking updated! ₹${paymentRequirement.totalDue.toStringAsFixed(2)} deducted from wallet'),
+                    child: Text('Payment successful! Booking has been updated.'),
                   ),
                 ],
               ),
@@ -1802,7 +2377,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           preferredPaymentMethod: 'cashfree',
         );
 
-        if (mounted) Navigator.pop(context);
+        if (mounted) {
+          // Find the most recent dialog and close it
+          Navigator.of(context, rootNavigator: true).pop();
+        }
 
         if (paymentResponse != null && paymentResponse.success) {
           // Navigate to Cashfree payment or handle payment session
@@ -1824,7 +2402,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         }
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      }
 
       scaffoldMessenger.showSnackBar(
         SnackBar(
@@ -1844,10 +2425,6 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     required BookingPaymentModel paymentResponse,
     required double walletAmountUsed,
   }) {
-    // TODO: Integrate with Cashfree SDK
-    // This should open Cashfree payment gateway
-    // After successful payment, call BookingService.processDifferencePayment with Cashfree details
-    
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
       SnackBar(
@@ -1859,173 +2436,127 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
       ),
     );
 
-    // For now, show a placeholder message
-    // In production, integrate with Cashfree SDK here
-    // Example:
-    // CashfreePayment.startPayment(
-    //   orderId: paymentResponse.orderId,
-    //   sessionId: paymentResponse.sessionId,
-    //   onSuccess: (result) => _onCashfreePaymentSuccess(bookingId, result, walletAmountUsed),
-    //   onFailure: (error) => _onCashfreePaymentFailure(error),
-    // );
+    try {
+      // Get environment
+      final cfEnvironment = (paymentResponse.data?.cashfreeEnv ?? 'SANDBOX').toLowerCase() == 'production'
+          ? CFEnvironment.PRODUCTION
+          : CFEnvironment.SANDBOX;
+
+      // Build session using CFSessionBuilder
+      final cfSession = CFSessionBuilder()
+          .setEnvironment(cfEnvironment)
+          .setOrderId(paymentResponse.data?.cashfreeOrder?.orderId ?? '')
+          .setPaymentSessionId(paymentResponse.data?.cashfreeOrder?.paymentSessionId ?? '')
+          .build();
+
+      // Set payment components using CFPaymentComponentBuilder
+      final cfPaymentComponent = CFPaymentComponentBuilder()
+          .setComponents([
+            CFPaymentModes.CARD,
+            CFPaymentModes.UPI,
+            CFPaymentModes.NETBANKING,
+            CFPaymentModes.WALLET,
+          ])
+          .build();
+
+      // Set theme using CFThemeBuilder
+      final cfTheme = CFThemeBuilder()
+          .setNavigationBarBackgroundColorColor('#6366F1')
+          .setNavigationBarTextColor('#FFFFFF')
+          .setButtonBackgroundColor('#6366F1')
+          .setButtonTextColor('#FFFFFF')
+          .setPrimaryTextColor('#000000')
+          .setSecondaryTextColor('#666666')
+          .build();
+
+      // Build drop checkout payment using CFDropCheckoutPaymentBuilder
+      final cfDropCheckoutPayment = CFDropCheckoutPaymentBuilder()
+          .setSession(cfSession)
+          .setPaymentComponent(cfPaymentComponent)
+          .setTheme(cfTheme)
+          .build();
+
+      // Get payment gateway service
+      final cfPaymentGatewayService = CFPaymentGatewayService();
+      
+      // Set callbacks
+      cfPaymentGatewayService.setCallback(
+        (String orderId) {
+          _onCashfreePaymentSuccess(orderId, bookingId, walletAmountUsed);
+        },
+        (CFErrorResponse errorResponse, String orderId) {
+          _onCashfreePaymentFailure(errorResponse);
+        },
+      );
+      
+      // Initiate payment
+      cfPaymentGatewayService.doPayment(cfDropCheckoutPayment);
+    } on CFException catch (e) {
+      _onCashfreePaymentCancelled('Payment failed: ${e.message}');
+    } catch (e) {
+      _onCashfreePaymentCancelled('Payment failed: Something went wrong');
+    }
   }
 
-  void _onDeleteBooking(NotificationItem notification) {
-    final colors = context.colors;
-    final bookingData = notification.data;
-    if (bookingData == null) return;
-
-    // Debug print for this method
-    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
+  // Handle successful payment
+  void _onCashfreePaymentSuccess(String orderId, int bookingId, double walletAmountUsed) async {
+    if (!mounted) return;
     
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.delete_forever, color: AppColors.error),
-            const SizedBox(width: 8),
-            Text(
-              'Delete Booking',
-              style: TextStyle(color: colors.textPrimary),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to delete this booking?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Booking ID: #${bookingData.bookingId ?? 0}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Provider: ${bookingData.providerName ?? 'N/A'}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Date: ${_formatDate(bookingData.date)}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'This action cannot be undone.',
-              style: TextStyle(
-                color: AppColors.error,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              if (bookingData.bookingId != null) _deleteBooking(bookingData.bookingId!);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteBooking(int bookingId) async {
-    // Cancel/delete booking functionality for confirmed bookings
-    print('🗑️ API Cancel Booking called for ID: $bookingId');
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-
+    scaffoldMessenger.clearSnackBars();
+    
+    // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => const Center(
+      builder: (context) => const Center(
         child: CircularProgressIndicator(),
       ),
     );
-
+    
     try {
-      // Use new cancelBookingWithRefund method that returns refund info
-      final response = await BookingService.cancelBookingWithRefund(bookingId, reason: 'Cancelled by user');
-
-      if (mounted) Navigator.pop(context);
-
-      if (response.success) {
-        // Check if refund was processed
-        final refundInfo = response.data?.refundInfo;
-        
-        if (refundInfo != null && refundInfo.amount > 0) {
-          // Show refund success message
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Booking cancelled! ₹${refundInfo.amount.toStringAsFixed(2)} refunded to your wallet',
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        } else {
-          // No refund (maybe booking wasn't paid yet)
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Text(response.message.isNotEmpty ? response.message : 'Booking cancelled successfully'),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-
-        if (mounted) _loadNotifications();
-      } else {
+      // Process the payment with the backend
+      final response = await BookingService.processDifferencePayment(
+        bookingId: bookingId,
+        amount: walletAmountUsed, // This is the wallet amount used
+        paymentMethod: 'cashfree',
+        // Use orderId parameter instead of cashfreeOrderId
+        // Since the processDifferencePayment method doesn't have a cashfreeOrderId parameter
+      );
+      
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      
+      if (response != null && response.success) {
+        // Show success message
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text(response.message.isNotEmpty ? response.message : 'Failed to cancel booking'),
-            backgroundColor: AppColors.error,
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('Payment successful! Booking has been updated.'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        
+        // Refresh the notifications list
+        _refreshNotifications();
+      } else {
+        // Show error message
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Payment verification failed: ${response?.message ?? 'Unknown error'}'),
+            backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             duration: const Duration(seconds: 3),
@@ -2033,12 +2564,16 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         );
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
-
+      if (mounted) {
+        // Find the most recent dialog and close it
+        Navigator.of(context, rootNavigator: true).pop();
+      } // Close loading
+      
+      // Show error message
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.error,
+          content: Text('Payment processing error: $e'),
+          backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           duration: const Duration(seconds: 3),
@@ -2047,787 +2582,36 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     }
   }
 
-  void _onCancelBooking(NotificationItem notification) {
-    // Handle cancel booking functionality for confirmed bookings
-    final colors = context.colors;
-    final bookingData = notification.data;
-    if (bookingData == null) return;
-    
-    // Debug print for cancel booking
-    print('❌ Cancel Booking called for ID: ${notification.data?.bookingId}, Status: ${notification.data?.status}');
-    print('📅 Booking details: Date=${bookingData.date}, Start=${bookingData.startTime}, End=${bookingData.endTime}');
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.cancel, color: AppColors.error),
-            const SizedBox(width: 8),
-            Text(
-              'Cancel Booking',
-              style: TextStyle(color: colors.textPrimary),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to cancel this booking?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Booking ID: #${bookingData.bookingId ?? 0}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Date: ${_formatDate(bookingData.date)}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Amount: ₹${bookingData.amount ?? '0'}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-            if (bookingData.paymentStatus?.toLowerCase() == 'paid') ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.account_balance_wallet, color: AppColors.success, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Amount will be refunded to your wallet',
-                        style: TextStyle(
-                          color: AppColors.success,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('No, Keep It', style: TextStyle(color: colors.textTertiary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              if (bookingData.bookingId != null) _deleteBooking(bookingData.bookingId!);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
-            ),
-            child: const Text('Yes, Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Handle payment failure
+  void _onCashfreePaymentFailure(CFErrorResponse error) {
+    if (!mounted) return;
 
-  void _onStartMeeting(NotificationItem notification) {
-    final colors = context.colors;
-    final bookingData = notification.data;
-    if (bookingData == null) return;
-
-    // Debug print for this method
-    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.play_circle, color: AppColors.success),
-            const SizedBox(width: 8),
-            Text(
-              'Start Meeting',
-              style: TextStyle(color: colors.textPrimary),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you ready to start this meeting?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Booking ID: #${bookingData.bookingId ?? 0}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Date: ${_formatDate(bookingData.date)}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Duration: ${bookingData.durationHours ?? 0} hours',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  if (bookingData.meetingLocation != null && bookingData.meetingLocation!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Location: ${bookingData.meetingLocation ?? ''}',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'You will need to take a photo to verify the meeting has started.',
-              style: TextStyle(
-                color: colors.textTertiary,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Not Yet', style: TextStyle(color: colors.textTertiary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              if (bookingData.bookingId != null) _startMeeting(bookingData.bookingId!);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: AppColors.white,
-            ),
-            child: const Text('Start Meeting'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _startMeeting(int bookingId) async {
-    // Navigate to my_bookings_screen where the actual meeting start functionality exists
-    // Or show a message to go to My Bookings
-    ScaffoldMessenger.of(context).showSnackBar(
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    scaffoldMessenger.clearSnackBars();
+    scaffoldMessenger.showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.info_outline, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text('Please go to My Bookings to start the meeting with photo verification'),
-            ),
-          ],
-        ),
-        backgroundColor: AppColors.primary,
+        content: Text('Payment failed: ${error.getMessage() ?? 'Unknown error'}'),
+        backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 4),
-        action: SnackBarAction(
-          label: 'Go',
-          textColor: Colors.white,
-          onPressed: () {
-            // Navigate to My Bookings
-            Navigator.of(context).pushNamed('/my-bookings');
-          },
-        ),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
 
-  void _onAcceptBooking(NotificationItem notification) {
-    final colors = context.colors;
-    final bookingData = notification.data;
-    if (bookingData == null) return;
+  // Handle payment cancellation
+  void _onCashfreePaymentCancelled(String message) {
+    if (!mounted) return;
 
-    // Debug print for this method
-    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: AppColors.success),
-            const SizedBox(width: 8),
-            Text(
-              'Accept Booking',
-              style: TextStyle(color: colors.textPrimary),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to accept this booking request?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Booking ID: #${bookingData.bookingId ?? 0}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Client ID: ${bookingData.clientId ?? 0}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Date: ${_formatDate(bookingData.date)}',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Duration: ${bookingData.durationHours ?? 0} hours',
-                    style: TextStyle(color: colors.textSecondary),
-                  ),
-                  if (bookingData.meetingLocation != null && bookingData.meetingLocation!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Location: ${bookingData.meetingLocation ?? ''}',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              if (bookingData.bookingId != null) _acceptBooking(bookingData.bookingId!);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: AppColors.white,
-            ),
-            child: const Text('Accept'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _acceptBooking(int bookingId) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      final response = await ProviderBookingService.acceptBooking(bookingId);
-
-      if (mounted) {
-        Navigator.of(context).pop();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(response.message),
-            backgroundColor: response.success ? AppColors.success : AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-
-        if (response.success) {
-          _loadNotifications();
-          // Optimistically show chat icon immediately
-          ChatIconProvider.maybeOf(context)?.setChatIconVisibility(true);
-          // Then refresh in background to get accurate chat count
-          ChatIconProvider.maybeOf(context)?.refresh();
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pop();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error accepting booking: $e'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
-    }
-  }
-
-  void _onRejectBooking(NotificationItem notification) {
-    final colors = context.colors;
-    final bookingData = notification.data;
-    if (bookingData == null) return;
-    final reasonController = TextEditingController();
-
-    // Debug print for this method
-    print('🔍 Method called with notification ID: ${notification.id}, Type: ${notification.type}');
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.cancel, color: colors.textSecondary),
-            const SizedBox(width: 8),
-            Text(
-              'Reject Booking',
-              style: TextStyle(color: colors.textPrimary),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Are you sure you want to reject this booking request?',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.textTertiary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Booking ID: #${bookingData.bookingId ?? 0}',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Client ID: ${bookingData.clientId ?? 0}',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Date: ${_formatDate(bookingData.date)}',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Reason for rejection (optional)',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: reasonController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Enter reason for rejecting this booking...',
-                  hintStyle: TextStyle(color: colors.textTertiary, fontSize: 14),
-                  filled: true,
-                  fillColor: colors.inputBackground,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: colors.inputBorder),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: colors.inputBorder),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: colors.textSecondary, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.all(12),
-                ),
-                style: TextStyle(color: colors.textPrimary, fontSize: 14),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'The client will be notified of your decision.',
-                style: TextStyle(
-                  color: colors.textTertiary,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              final reason = reasonController.text.trim();
-              if (bookingData.bookingId != null) _rejectBooking(bookingData.bookingId!, reason: reason.isNotEmpty ? reason : null);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.textSecondary,
-              foregroundColor: AppColors.white,
-            ),
-            child: const Text('Reject'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _rejectBooking(int bookingId, {String? reason}) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    final response = await ProviderBookingService.rejectBooking(bookingId, reason: reason);
-
-    if (mounted) {
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response.message),
-          backgroundColor: response.success ? Colors.grey : AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-
-      if (response.success) {
-        _loadNotifications();
-      }
-    }
-  }
-
-  void _onBlockUser(NotificationItem notification) {
-    final colors = context.colors;
-    final bookingData = notification.data;
-    if (bookingData == null) return;
-
-    // Debug print for this method
-    print('🔍 Block User called - Notification ID: ${notification.id}, Type: ${notification.type}');
-    print('🔍 Booking Data - bookingId: ${bookingData.bookingId}, clientId: ${bookingData.clientId}');
-    
-    // TextEditingController for reason input
-    final reasonController = TextEditingController();
-    
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            backgroundColor: colors.card,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Row(
-              children: [
-                Icon(Icons.block, color: AppColors.error),
-                const SizedBox(width: 8),
-                Text(
-                  'Block User',
-                  style: TextStyle(color: colors.textPrimary),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Are you sure you want to block this user?',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Reason input field - Required by API
-                  TextField(
-                    controller: reasonController,
-                    maxLines: 3,
-                    maxLength: 500,
-                    decoration: InputDecoration(
-                      labelText: 'Reason for blocking *',
-                      hintText: 'e.g., Inappropriate behavior, No-show, etc.',
-                      labelStyle: TextStyle(color: colors.textSecondary),
-                      hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12),
-                      filled: true,
-                      fillColor: colors.card,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: colors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: AppColors.error),
-                      ),
-                      counterStyle: TextStyle(color: colors.textTertiary),
-                    ),
-                    style: TextStyle(color: colors.textPrimary),
-                    onChanged: (_) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'This will:',
-                          style: TextStyle(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '• Reject this booking request',
-                          style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                        ),
-                        Text(
-                          '• Prevent future booking requests',
-                          style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                        ),
-                        Text(
-                          '• Hide your profile from this user',
-                          style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'This action can be undone from Settings.',
-                    style: TextStyle(
-                      color: colors.textTertiary,
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  reasonController.dispose();
-                  Navigator.pop(dialogContext);
-                },
-                child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
-              ),
-              ElevatedButton(
-                onPressed: reasonController.text.trim().isEmpty
-                    ? null
-                    : () {
-                        final reason = reasonController.text.trim();
-                        reasonController.dispose();
-                        Navigator.pop(dialogContext);
-                        if (bookingData.bookingId != null) {
-                          _blockUser(bookingData.bookingId!, reason);
-                        }
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  foregroundColor: AppColors.white,
-                  disabledBackgroundColor: AppColors.gray400,
-                  disabledForegroundColor: AppColors.white,
-                ),
-                child: const Text('Block'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // Block user API call - POST /provider/booking/{id}/block with reason
-  Future<void> _blockUser(int bookingId, String reason) async {
-    print('🔍 Calling blockClient API - bookingId: $bookingId, reason: $reason');
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    final response = await ProviderBookingService.blockClient(bookingId, reason: reason);
-
-    print('🔍 Block API Response - success: ${response.success}, message: ${response.message}');
-
-    if (mounted) {
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response.message),
-          backgroundColor: response.success ? AppColors.success : AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-
-      if (response.success) {
-        _loadNotifications();
-      }
-    }
-  }
-
-  void _handleNotificationTap(NotificationItem notification) {
-    switch (notification.type.toLowerCase()) {
-      case 'booking':
-      case 'booking_request':
-      case 'booking_confirmed':
-      case 'booking_cancelled':
-        break;
-      case 'payment':
-      case 'payment_received':
-      case 'payment_pending':
-        break;
-      default:
-        _showNotificationDetails(notification);
-    }
-  }
-
-  void _showNotificationDetails(NotificationItem notification) {
-    final colors = context.colors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = isDark ? AppColors.primaryLight : AppColors.primary;
-
-    print('📝 Showing notification details for ID: ${notification.id}, Type: ${notification.type}');
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          notification.title,
-          style: TextStyle(color: colors.textPrimary),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              notification.message,
-              style: TextStyle(color: colors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Received: ${_formatDate(notification.createdAt)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: primaryColor)),
-          ),
-        ],
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    scaffoldMessenger.clearSnackBars();
+    scaffoldMessenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 3),
       ),
     );
   }

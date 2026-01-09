@@ -217,6 +217,14 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
     super.dispose();
   }
 
+  /// Safely rounds a double to int, handling Infinity and NaN cases
+  int _safeRound(double value) {
+    if (value.isNaN || value.isInfinite) {
+      return 0;
+    }
+    return value.round();
+  }
+
   Future<void> _selectDate(BuildContext context, StateSetter setState) async {
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -545,7 +553,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '₹${_priceRange.start.round()}',
+                              '₹${_safeRound(_priceRange.start)}',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontWeight: FontWeight.bold,
@@ -553,7 +561,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
                               ),
                             ),
                             Text(
-                              '₹${_priceRange.end.round()}',
+                              '₹${_safeRound(_priceRange.end)}',
                               style: TextStyle(
                                 color: colors.textSecondary,
                                 fontWeight: FontWeight.bold,
@@ -571,8 +579,8 @@ class _FindPersonScreenState extends State<FindPersonScreen> with TickerProvider
                           activeColor: primaryColor,
                           inactiveColor: colors.divider,
                           labels: RangeLabels(
-                            '₹${_priceRange.start.round()}',
-                            '₹${_priceRange.end.round()}',
+                            '₹${_safeRound(_priceRange.start)}',
+                            '₹${_safeRound(_priceRange.end)}',
                           ),
                           onChanged: (values) {
                             setState(() {

@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_colors.dart';
 import '../providers/chat_icon_provider.dart';
+import '../providers/notification_provider.dart';
 import '../routes/app_routes.dart';
-import '../Service/notification_service.dart';
 import 'themed_logo.dart';
 
 
-class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
+class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
   final String title;
   final bool showBackButton;
@@ -24,37 +24,11 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   });
 
   @override
-  State<CustomAppBar> createState() => _CustomAppBarState();
-
-  @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-}
-
-class _CustomAppBarState extends State<CustomAppBar> {
-  int _unreadNotificationCount = 0;
 
   String? get _userPhotoUrl {
     final user = FirebaseAuth.instance.currentUser;
     return user?.photoURL;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUnreadCount();
-  }
-
-  Future<void> _loadUnreadCount() async {
-    try {
-      final response = await NotificationService.getUnreadCount();
-      if (mounted && response != null && response.success) {
-        setState(() {
-          _unreadNotificationCount = response.unreadCount;
-        });
-      }
-    } catch (e) {
-      // Silent fail - badge is optional
-    }
   }
 
   @override
@@ -78,11 +52,14 @@ class _CustomAppBarState extends State<CustomAppBar> {
     final chatNotifier = ChatIconProvider.maybeOf(context);
     
     // Determine chat icon visibility: use explicit value if provided, otherwise use provider
-    final shouldShowChatIcon = widget.showChatIcon ?? (chatNotifier?.showChatIcon ?? false);
+    final shouldShowChatIcon = showChatIcon ?? (chatNotifier?.showChatIcon ?? false);
+
+    // Get notification count from provider (auto-updates when count changes)
+    final unreadNotificationCount = context.unreadNotificationCount;
 
     return AppBar(
-      automaticallyImplyLeading: widget.showBackButton,
-      leading: widget.showBackButton
+      automaticallyImplyLeading: showBackButton,
+      leading: showBackButton
           ? IconButton(
               icon: Icon(Icons.arrow_back, color: primaryColor, size: iconSize),
               onPressed: () => Navigator.of(context).pop(),
@@ -111,7 +88,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
           ),
         ),
       ),
-      actions: widget.actions ?? [
+      actions: actions ?? [
         // Only show chat icon if shouldShowChatIcon is true
         if (shouldShowChatIcon)
           IconButton(
@@ -127,12 +104,11 @@ class _CustomAppBarState extends State<CustomAppBar> {
             IconButton(
               icon: Icon(Icons.notifications, color: primaryColor, size: iconSize),
               onPressed: () async {
-                // Navigate to notifications and refresh count when returning
+                // Navigate to notifications - count will auto-update via provider
                 await AppRoutes.navigateTo(context, AppRoutes.notificationsList);
-                _loadUnreadCount();
               },
             ),
-            if (_unreadNotificationCount > 0)
+            if (unreadNotificationCount > 0)
               Positioned(
                 right: 6,
                 top: 6,
@@ -147,7 +123,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     minHeight: 18,
                   ),
                   child: Text(
-                    _unreadNotificationCount > 99 ? '99+' : _unreadNotificationCount.toString(),
+                    unreadNotificationCount > 99 ? '99+' : unreadNotificationCount.toString(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
@@ -181,7 +157,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                   ),
                 ),
           onPressed: () {
-            widget.scaffoldKey.currentState?.openEndDrawer();
+            scaffoldKey.currentState?.openEndDrawer();
           },
         ),
         SizedBox(width: endPadding),

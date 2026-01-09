@@ -118,7 +118,7 @@ class SugarPartnerService {
           message: 'Exchange not found.',
         );
       } else {
-        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get exchange details');
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: 'Failed to get exchange details - Response: ${response.body}');
         return SugarPartnerExchangeDetailsResponse(
           success: false,
           message: 'Failed to get exchange details.',
@@ -328,6 +328,96 @@ class SugarPartnerService {
     } catch (e) {
       ApiLogger.logNetworkError(endpoint: url, error: e.toString());
       return ExchangePaymentResponse(
+        success: false,
+        message: 'Network error. Please check your connection.',
+      );
+    }
+  }
+
+  /// Process payment for a Sugar Partner exchange
+  /// Supports wallet-only, wallet+cashfree, or cashfree-only payments
+  static Future<SugarPartnerPaymentProcessResponse> processPayment({
+    required int exchangeId,
+    required String paymentMethod, // 'wallet', 'wallet_cashfree', 'cashfree'
+    String? cfOrderId,
+    String? cfTransactionId,
+    double walletAmountUsed = 0.0,
+  }) async {
+    final url = '${ApiConstants.baseUrl}/sugar-partner/exchange/$exchangeId/process-payment';
+    try {
+      final token = await _getToken();
+
+      if (token == null) {
+        return SugarPartnerPaymentProcessResponse(
+          success: false,
+          message: 'Authentication required. Please login again.',
+        );
+      }
+
+      final Map<String, dynamic> body = {
+        'payment_method': paymentMethod,
+        'wallet_amount_used': walletAmountUsed,
+      };
+
+      if (cfOrderId != null && cfOrderId.isNotEmpty) {
+        body['cf_order_id'] = cfOrderId;
+      }
+      if (cfTransactionId != null && cfTransactionId.isNotEmpty) {
+        body['cf_transaction_id'] = cfTransactionId;
+      }
+
+      // Log API call
+      ApiLogger.logApiCall(endpoint: url, method: 'POST', body: {'payment_method': paymentMethod, 'wallet_amount_used': walletAmountUsed});
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ApiLogger.logApiSuccess(endpoint: url, statusCode: response.statusCode);
+        return SugarPartnerPaymentProcessResponse.fromJson(responseData);
+      } else if (response.statusCode == 401) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 401, error: 'Session expired');
+        return SugarPartnerPaymentProcessResponse(
+          success: false,
+          message: 'Session expired. Please login again.',
+        );
+      } else if (response.statusCode == 400) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 400, error: responseData['message'] ?? 'Invalid payment request');
+        return SugarPartnerPaymentProcessResponse(
+          success: false,
+          message: responseData['message'] ?? 'Invalid payment request.',
+        );
+      } else if (response.statusCode == 402) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 402, error: responseData['message'] ?? 'Payment failed');
+        return SugarPartnerPaymentProcessResponse(
+          success: false,
+          message: responseData['message'] ?? 'Payment failed. Insufficient balance.',
+        );
+      } else if (response.statusCode == 404) {
+        ApiLogger.logApiError(endpoint: url, statusCode: 404, error: 'Exchange not found');
+        return SugarPartnerPaymentProcessResponse(
+          success: false,
+          message: responseData['message'] ?? 'Exchange not found.',
+        );
+      } else {
+        ApiLogger.logApiError(endpoint: url, statusCode: response.statusCode, error: responseData['message'] ?? 'Failed to process payment');
+        return SugarPartnerPaymentProcessResponse(
+          success: false,
+          message: responseData['message'] ?? 'Failed to process payment.',
+        );
+      }
+    } catch (e) {
+      ApiLogger.logNetworkError(endpoint: url, error: e.toString());
+      return SugarPartnerPaymentProcessResponse(
         success: false,
         message: 'Network error. Please check your connection.',
       );
@@ -1135,7 +1225,7 @@ class SugarPartnerActionResponse {
 class ExchangePaymentResponse {
   final bool success;
   final String message;
-  final SugarPartnerPayment? data;
+  final ExchangePaymentData? data;
 
   ExchangePaymentResponse({
     required this.success,
@@ -1148,8 +1238,150 @@ class ExchangePaymentResponse {
       success: json['success'] ?? false,
       message: json['message'] ?? '',
       data: json['data'] != null
-          ? SugarPartnerPayment.fromJson(json['data'])
+          ? ExchangePaymentData.fromJson(json['data'])
           : null,
+    );
+  }
+}
+
+/// Payment data for Sugar Partner exchange
+/// Contains amount breakdown, wallet balance, and Cashfree order details
+class ExchangePaymentData {
+  final int? exchangeId;
+  final double? amount;
+  final double? platformFee;
+  final double? totalAmount;
+  final String? paymentStatus;
+  final double? walletBalance;
+  final double? walletUsage;
+  final double? cashfreeAmount;
+  final bool? paymentRequired;
+  final SugarPartnerCashfreeOrder? cashfreeOrder;
+  final String? cashfreeKey;
+  final String? cashfreeEnv;
+  final SugarPartnerUser? otherUser;
+
+  ExchangePaymentData({
+    this.exchangeId,
+    this.amount,
+    this.platformFee,
+    this.totalAmount,
+    this.paymentStatus,
+    this.walletBalance,
+    this.walletUsage,
+    this.cashfreeAmount,
+    this.paymentRequired,
+    this.cashfreeOrder,
+    this.cashfreeKey,
+    this.cashfreeEnv,
+    this.otherUser,
+  });
+
+  factory ExchangePaymentData.fromJson(Map<String, dynamic> json) {
+    return ExchangePaymentData(
+      exchangeId: json['exchange_id'],
+      amount: SugarPartnerService._parseDouble(json['amount']),
+      platformFee: SugarPartnerService._parseDouble(json['platform_fee']),
+      totalAmount: SugarPartnerService._parseDouble(json['total_amount']),
+      paymentStatus: json['payment_status'],
+      walletBalance: SugarPartnerService._parseDouble(json['wallet_balance']),
+      walletUsage: SugarPartnerService._parseDouble(json['wallet_usage']),
+      cashfreeAmount: SugarPartnerService._parseDouble(json['cashfree_amount']),
+      paymentRequired: SugarPartnerService._parseBool(json['payment_required']),
+      cashfreeOrder: json['cashfree_order'] != null
+          ? SugarPartnerCashfreeOrder.fromJson(json['cashfree_order'])
+          : null,
+      cashfreeKey: json['cashfree_key'],
+      cashfreeEnv: json['cashfree_env'],
+      otherUser: json['other_user'] != null
+          ? SugarPartnerUser.fromJson(json['other_user'])
+          : null,
+    );
+  }
+}
+
+/// Cashfree order details for Sugar Partner payment
+class SugarPartnerCashfreeOrder {
+  final String? orderId;
+  final String? paymentSessionId;
+  final String? cfOrderId;
+  final String? orderStatus;
+
+  SugarPartnerCashfreeOrder({
+    this.orderId,
+    this.paymentSessionId,
+    this.cfOrderId,
+    this.orderStatus,
+  });
+
+  factory SugarPartnerCashfreeOrder.fromJson(Map<String, dynamic> json) {
+    return SugarPartnerCashfreeOrder(
+      orderId: json['order_id'],
+      paymentSessionId: json['payment_session_id'],
+      cfOrderId: json['cf_order_id'],
+      orderStatus: json['order_status'],
+    );
+  }
+}
+
+/// Response for payment processing
+class SugarPartnerPaymentProcessResponse {
+  final bool success;
+  final String message;
+  final SugarPartnerPaymentResult? data;
+
+  SugarPartnerPaymentProcessResponse({
+    required this.success,
+    required this.message,
+    this.data,
+  });
+
+  factory SugarPartnerPaymentProcessResponse.fromJson(Map<String, dynamic> json) {
+    return SugarPartnerPaymentProcessResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'] != null
+          ? SugarPartnerPaymentResult.fromJson(json['data'])
+          : null,
+    );
+  }
+}
+
+/// Payment result data
+class SugarPartnerPaymentResult {
+  final int? exchangeId;
+  final String? paymentStatus;
+  final String? paymentMethod;
+  final double? walletAmountUsed;
+  final double? cashfreeAmountPaid;
+  final double? totalPaid;
+  final String? transactionId;
+  final String? paidAt;
+  final double? newWalletBalance;
+
+  SugarPartnerPaymentResult({
+    this.exchangeId,
+    this.paymentStatus,
+    this.paymentMethod,
+    this.walletAmountUsed,
+    this.cashfreeAmountPaid,
+    this.totalPaid,
+    this.transactionId,
+    this.paidAt,
+    this.newWalletBalance,
+  });
+
+  factory SugarPartnerPaymentResult.fromJson(Map<String, dynamic> json) {
+    return SugarPartnerPaymentResult(
+      exchangeId: json['exchange_id'],
+      paymentStatus: json['payment_status'] ?? json['status'],
+      paymentMethod: json['payment_method'],
+      walletAmountUsed: SugarPartnerService._parseDouble(json['wallet_amount_used']),
+      cashfreeAmountPaid: SugarPartnerService._parseDouble(json['cashfree_amount_paid']),
+      totalPaid: SugarPartnerService._parseDouble(json['total_paid']) ?? SugarPartnerService._parseDouble(json['amount']),
+      transactionId: json['transaction_id'],
+      paidAt: json['paid_at'],
+      newWalletBalance: SugarPartnerService._parseDouble(json['new_wallet_balance']) ?? SugarPartnerService._parseDouble(json['wallet_balance']),
     );
   }
 }

@@ -691,8 +691,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'title': 'Sugar Partner',
           'icon': Icons.favorite,
           'color': Colors.pink,
-          'onTap': () {
-            AppRoutes.navigateTo(context, AppRoutes.sugarPartner);
+          'onTap': () async {
+            // Check for gallery photos before navigating to Sugar Partner
+            await AppRoutes.toSugarPartnerWithGalleryCheck(context);
           },
         },
       {

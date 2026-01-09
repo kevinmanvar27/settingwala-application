@@ -7,28 +7,29 @@ plugins {
 
 android {
     namespace = "com.rektech.settingwalaapp"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "11"
     }
 
     defaultConfig {
         applicationId = "com.rektech.settingwalaapp"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
+
     buildTypes {
         release {
-            // Use debug signing for testing (remove for Play Store release)
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
@@ -38,7 +39,6 @@ android {
             )
         }
     }
-
 }
 
 flutter {
@@ -46,12 +46,13 @@ flutter {
 }
 
 dependencies {
-    // Use the newer Play Core libraries (split modules) instead of the monolithic one
     implementation("com.google.android.play:app-update:2.1.0")
     implementation("com.google.android.play:review:2.0.1")
     implementation("com.google.android.play:feature-delivery:2.0.1")
-    
-    // Exclude the old monolithic core library to avoid duplicate classes
+
+    // Required for flutter_local_notifications & java.time APIs
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
     configurations.all {
         exclude(group = "com.google.android.play", module = "core")
     }
